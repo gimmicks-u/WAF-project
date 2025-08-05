@@ -1,0 +1,30 @@
+services:
+  waf-nginx:
+    image: owasp/modsecurity-crs:nginx
+    container_name: waf-nginx
+    restart: always
+    ports:
+      - 8080:8080
+      - 8443:8443
+    networks:
+      - waf_network
+    environment:
+      - BACKEND=http://backend-server:3000
+    depends_on:
+      - backend-server
+
+  backend-server:
+    build: ./backend-server
+    container_name: backend-server
+    restart: always
+    ports:
+      - 3000:3000
+    networks:
+      - waf_network
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+
+networks:
+  waf_network:
+    driver: bridge
