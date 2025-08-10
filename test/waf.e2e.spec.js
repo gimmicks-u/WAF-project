@@ -6,10 +6,11 @@ const BASE_URL = process.env.WAF_BASE_URL || 'http://localhost:8080';
 // Helper to perform GET and expect 403
 async function expectGet403(path) {
   try {
-    await axios.get(`${BASE_URL}${path}`, {
+    const res = await axios.get(`${BASE_URL}${path}`, {
       // Follow redirects false is axios default; ensure headers
       validateStatus: () => true,
     });
+    expect(res.status).toBe(403);
   } catch (e) {
     throw new Error(`요청 실패: ${e.message}`);
   }
@@ -59,7 +60,7 @@ describe('WAF ModSecurity+CRS 차단 E2E', () => {
     }
   });
 
-  beforeEach(function skipIfDown() {
+  beforeEach(() => {
     if (!serverAvailable) {
       // 서버 없을 시 테스트 스킵
       pending(
@@ -70,48 +71,27 @@ describe('WAF ModSecurity+CRS 차단 E2E', () => {
 
   describe('XSS 차단', () => {
     test('기본 XSS', async () => {
-      const res = await axios.get(`${BASE_URL}/?q=<script>alert(1)</script>`, {
-        validateStatus: () => true,
-      });
-      expect(res.status).toBe(403);
+      await expectGet403(`/?q=<script>alert(1)</script>`);
     });
 
     test('다양한 XSS 변형 - img onerror', async () => {
-      const res = await axios.get(
-        `${BASE_URL}/?search=<img src=x onerror=alert(1)>`,
-        { validateStatus: () => true }
-      );
-      expect(res.status).toBe(403);
+      await expectGet403(`/?search=<img src=x onerror=alert(1)>`);
     });
 
     test('다양한 XSS 변형 - svg onload', async () => {
-      const res = await axios.get(`${BASE_URL}/?name=<svg onload=alert(1)>`, {
-        validateStatus: () => true,
-      });
-      expect(res.status).toBe(403);
+      await expectGet403(`/?name=<svg onload=alert(1)>`);
     });
 
     test('다양한 XSS 변형 - javascript protocol', async () => {
-      const res = await axios.get(`${BASE_URL}/?data=javascript:alert(1)`, {
-        validateStatus: () => true,
-      });
-      expect(res.status).toBe(403);
+      await expectGet403(`/?data=javascript:alert(1)`);
     });
 
     test('다양한 XSS 변형 - iframe javascript', async () => {
-      const res = await axios.get(
-        `${BASE_URL}/?input=<iframe src=javascript:alert(1)></iframe>`,
-        { validateStatus: () => true }
-      );
-      expect(res.status).toBe(403);
+      await expectGet403(`/?input=<iframe src=javascript:alert(1)></iframe>`);
     });
 
     test('인코딩된 XSS - URL encoded', async () => {
-      const res = await axios.get(
-        `${BASE_URL}/?q=%3Cscript%3Ealert(1)%3C/script%3E`,
-        { validateStatus: () => true }
-      );
-      expect(res.status).toBe(403);
+      await expectGet403(`/?q=%3Cscript%3Ealert(1)%3C/script%3E`);
     });
 
     test('POST 방식 XSS - form-urlencoded', async () => {
@@ -129,77 +109,45 @@ describe('WAF ModSecurity+CRS 차단 E2E', () => {
 
   describe('SQL Injection 차단', () => {
     test('기본 SQLi - OR 1=1', async () => {
-      const res = await axios.get(`${BASE_URL}/?id=1' OR '1'='1`, {
-        validateStatus: () => true,
-      });
-      expect(res.status).toBe(403);
+      await expectGet403(`/?id=1' OR '1'='1`);
     });
 
     test('기본 SQLi - comment', async () => {
-      const res = await axios.get(`${BASE_URL}/?user=admin'--`, {
-        validateStatus: () => true,
-      });
-      expect(res.status).toBe(403);
+      await expectGet403(`/?user=admin'--`);
     });
 
     test('기본 SQLi - DROP TABLE', async () => {
-      const res = await axios.get(
-        `${BASE_URL}/?search='; DROP TABLE users; --`,
-        { validateStatus: () => true }
-      );
-      expect(res.status).toBe(403);
+      await expectGet403(`/?search='; DROP TABLE users; --`);
     });
 
     test('UNION 기반 공격 - select literals', async () => {
-      const res = await axios.get(`${BASE_URL}/?id=1' UNION SELECT 1,2,3--`, {
-        validateStatus: () => true,
-      });
-      expect(res.status).toBe(403);
+      await expectGet403(`/?id=1' UNION SELECT 1,2,3--`);
     });
 
     test('UNION 기반 공격 - users table', async () => {
-      const res = await axios.get(
-        `${BASE_URL}/?product=1' UNION SELECT username,password FROM users--`,
-        { validateStatus: () => true }
+      await expectGet403(
+        `/?product=1' UNION SELECT username,password FROM users--`
       );
-      expect(res.status).toBe(403);
     });
 
     test('Boolean 기반 Blind SQLi - 1=1', async () => {
-      const res = await axios.get(`${BASE_URL}/?id=1' AND 1=1--`, {
-        validateStatus: () => true,
-      });
-      expect(res.status).toBe(403);
+      await expectGet403(`/?id=1' AND 1=1--`);
     });
 
     test('Boolean 기반 Blind SQLi - 1=2', async () => {
-      const res = await axios.get(`${BASE_URL}/?id=1' AND 1=2--`, {
-        validateStatus: () => true,
-      });
-      expect(res.status).toBe(403);
+      await expectGet403(`/?id=1' AND 1=2--`);
     });
 
     test('Boolean 기반 Blind SQLi - subquery count', async () => {
-      const res = await axios.get(
-        `${BASE_URL}/?id=1' AND (SELECT COUNT(*) FROM users)>0--`,
-        { validateStatus: () => true }
-      );
-      expect(res.status).toBe(403);
+      await expectGet403(`/?id=1' AND (SELECT COUNT(*) FROM users)>0--`);
     });
 
     test('Time-based Blind SQLi - WAITFOR DELAY', async () => {
-      const res = await axios.get(
-        `${BASE_URL}/?id=1'; WAITFOR DELAY '00:00:05'--`,
-        { validateStatus: () => true }
-      );
-      expect(res.status).toBe(403);
+      await expectGet403(`/?id=1'; WAITFOR DELAY '00:00:05'--`);
     });
 
     test('Time-based Blind SQLi - SLEEP()', async () => {
-      const res = await axios.get(`${BASE_URL}/?id=1' AND SLEEP(5)--`, {
-        validateStatus: () => true,
-      });
-      expect(res.status).toBe(403);
+      await expectGet403(`/?id=1' AND SLEEP(5)--`);
     });
 
     test('POST 방식 SQLi - form 로그인', async () => {
