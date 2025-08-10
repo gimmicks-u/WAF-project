@@ -1,0 +1,15 @@
+{
+  "name": "waf-tests",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Jest-based security tests for WAF (ModSecurity + CRS)",
+  "scripts": {
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:sanity": "jest -t __sanity__"
+  },
+  "devDependencies": {
+    "axios": "^1.7.7",
+    "jest": "^29.7.0"
+  }
+}
