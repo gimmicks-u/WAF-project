@@ -1,65 +1,7 @@
 import { Controller, Post, Body, Inject, Get, Query } from '@nestjs/common';
 import { Pool } from 'pg';
 import { PG_CONNECTION } from '../database/database.module';
-import { Transform } from 'class-transformer';
-import {
-  IsOptional,
-  IsInt,
-  Min,
-  Max,
-  IsISO8601,
-  IsEnum,
-  IsIP,
-} from 'class-validator';
-
-class LogsQueryDto {
-  @IsOptional()
-  @IsInt()
-  @Min(1)
-  @Transform(({ value }) => parseInt(value))
-  page?: number = 1;
-
-  @IsOptional()
-  @IsInt()
-  @Min(1)
-  @Max(200)
-  @Transform(({ value }) => parseInt(value))
-  limit?: number = 50;
-
-  @IsOptional()
-  @IsISO8601()
-  from?: string;
-
-  @IsOptional()
-  @IsISO8601()
-  to?: string;
-
-  @IsOptional()
-  @IsIP()
-  ip?: string;
-
-  @IsOptional()
-  uri?: string;
-
-  @IsOptional()
-  method?: string;
-
-  @IsOptional()
-  @Transform(({ value }) => parseInt(value))
-  status?: number;
-
-  @IsOptional()
-  @IsEnum(['allowed', 'detected', 'blocked'])
-  action?: 'allowed' | 'detected' | 'blocked';
-
-  @IsOptional()
-  @IsEnum(['access', 'waf'])
-  source?: 'access' | 'waf';
-
-  @IsOptional()
-  @Transform(({ value }) => parseInt(value))
-  rule_id?: number;
-}
+import { LogsQueryDto } from './dto/logs-query.dto';
 
 @Controller()
 export class LogsController {
