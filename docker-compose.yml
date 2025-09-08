@@ -13,8 +13,14 @@ services:
     depends_on:
       - backend-server
     volumes:
-      - ./modsecurity-crs-nginx/nginx/rules/custom_rules.conf:/etc/nginx/conf.d/custom_rules.conf
-      - ./modsecurity-crs-nginx/modsecurity-crs/rules/custom_rules.conf:/etc/modsecurity.d/owasp-crs/rules/custom_rules.conf
+      - ./modsecurity-crs-nginx/nginx/rules/custom_rules.conf:/etc/nginx/conf.d/custom_rules.conf:ro
+      - ./modsecurity-crs-nginx/nginx/conf.d/40-logformat.conf:/etc/nginx/conf.d/40-logformat.conf:ro
+      - ./modsecurity-crs-nginx/nginx/templates/logging.conf.template:/etc/nginx/templates/conf.d/logging.conf.template:ro
+      - ./modsecurity-crs-nginx/modsecurity-crs/rules/custom_rules.conf:/etc/modsecurity.d/owasp-crs/rules/custom_rules.conf:ro
+      - ./modsecurity-crs-nginx/modsecurity-crs/templates/modsecurity-override.conf.template:/etc/nginx/templates/modsecurity.d/modsecurity-override.conf.template:ro
+      - nginx_logs:/var/log/nginx
+      - ./modsecurity-crs-nginx/nginx/logs/access.json.log:/tmp/access.json.log
+      - ./modsecurity-crs-nginx/modsecurity-crs/logs/modsec_audit.json:/tmp/modsec_audit.json
 
   backend-server:
     build: ./backend-server
@@ -27,7 +33,50 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=3000
+      - DATABASE_URL=postgres://waf:change_me@postgres:5432/waf_logs
+    depends_on:
+      - postgres
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: postgres
+    restart: always
+    environment:
+      - POSTGRES_DB=waf_logs
+      - POSTGRES_USER=waf
+      - POSTGRES_PASSWORD=change_me
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - waf_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U waf -d waf_logs"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  fluent-bit:
+    image: fluent/fluent-bit:latest
+    container_name: fluent-bit
+    restart: always
+    volumes:
+      - ./observability/fluent-bit/fluent-bit.conf:/fluent-bit/etc/fluent-bit.conf:ro
+      - ./observability/fluent-bit/parsers_multiline.conf:/fluent-bit/etc/parsers_multiline.conf:ro
+      - nginx_logs:/var/log/nginx:ro
+      - ./modsecurity-crs-nginx/nginx/logs/access.json.log:/tmp/access.json.log:ro
+      - ./modsecurity-crs-nginx/modsecurity-crs/logs/modsec_audit.json:/tmp/modsec_audit.json:ro
+    networks:
+      - waf_network
+    depends_on:
+      - waf-nginx
+      - backend-server
 
 networks:
   waf_network:
     driver: bridge
+
+volumes:
+  nginx_logs:
+  pgdata:

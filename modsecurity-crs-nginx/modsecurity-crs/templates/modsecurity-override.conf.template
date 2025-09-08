@@ -1,0 +1,18 @@
+# Override ModSecurity audit settings: enable JSON logs with bodies
+# This file replaces the default modsecurity-override.conf via the templates mechanism
+
+SecAuditEngine On
+SecRequestBodyAccess On
+SecResponseBodyAccess On
+
+# JSON audit logs (one JSON record per transaction)
+SecAuditLogType Serial
+SecAuditLogFormat JSON
+SecAuditLog /tmp/modsec_audit.json
+
+# Include 2xx/4xx/5xx to observe allowed and blocked
+SecAuditLogRelevantStatus "^(?:5|4)\d{2}$|^2\d{2}$"
+
+# Parts: include request/response headers & bodies
+SecAuditLogParts ABIJDEFHZ
+

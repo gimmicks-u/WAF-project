@@ -1,0 +1,10 @@
+# This template overrides the default logging configuration and routes access logs to syslog
+# We keep the log_format defined in 40-logformat.conf (loaded separately)
+
+# Send access logs over UDP syslog to Fluent Bit
+# Nginx will place the JSON message as the syslog message body
+# access_log configured in 40-logformat.conf to write to /var/log/nginx-json/access.json.log
+
+# Also forward error_log (which may contain ModSecurity JSON audit lines) to Fluent Bit syslog input
+error_log syslog:server=fluent-bit:5171,tag=nginx_error notice;
+

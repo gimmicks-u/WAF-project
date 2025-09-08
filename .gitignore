@@ -1,2 +1,35 @@
+# Existing ignores
 CLAUDE.md
-PRD.md
+
+# OS / Editor
+.DS_Store
+.vscode/
+.idea/
+
+# Env files
+.env
+.env.*
+*.env
+*.env.*
+
+# Docker local overrides
+docker-compose.override.yml
+
+# Logs and runtime artifacts (do not commit)
+# Ignore all files in logs directories under modsecurity-crs-nginx
+modsecurity-crs-nginx/**/logs/*
+
+# Explicit runtime log files (host-mounted)
+modsecurity-crs-nginx/nginx/logs/access.json.log
+modsecurity-crs-nginx/modsecurity-crs/logs/audit.log
+modsecurity-crs-nginx/modsecurity-crs/logs/modsec_audit.json
+
+# Generic log files anywhere
+*.log
+
+# Temporary files
+.tmp/
+.temp/
+*.tmp
+*.pid
+*.pid.lock
