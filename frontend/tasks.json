@@ -1,0 +1,292 @@
+{
+  "version": 1,
+  "generatedAt": "{{ISO_TIMESTAMP}}",
+  "project": "가공식품 영양성분 비교 플랫폼 - MVP",
+  "note": "모든 작업은 순차 의존(앞 작업 완료 후 다음 작업 시작) 구조입니다.",
+  "tasks": [
+    {
+      "id": "T-001",
+      "title": "초기 구조 세팅 및 타입/스키마 정의",
+      "status": "BACKLOG",
+      "description": "디렉터리 구조를 가이드에 맞게 정리하고 제품/영양 데이터 타입과 Zod 스키마를 정의합니다. 공용 HTTP 클라이언트, 기능 모듈 진입점을 마련합니다.",
+      "steps": [
+        "디렉터리 생성: src/features/products/{components,constants,hooks,lib} 및 src/remote",
+        "타입 정의 파일 추가: src/features/products/types.ts (Product, Nutrition, Brand, Category 등)",
+        "Zod 스키마 정의: ProductSchema, NutritionSchema",
+        "공용 HTTP 클라이언트 준비: src/remote/http.ts (axios 인스턴스)",
+        "유틸/상수 추가: src/features/products/constants/nutrition.ts (표시 순서, 단위 등)",
+        "모든 컴포넌트에 'use client' 지시어 적용 원칙 문서화"
+      ],
+      "deliverables": [
+        "src/features/products/types.ts",
+        "src/remote/http.ts",
+        "src/features/products/constants/nutrition.ts"
+      ],
+      "acceptanceCriteria": [
+        "타입/스키마 빌드 오류 없음",
+        "디렉터리 및 초기 파일 생성 완료",
+        "lint 통과"
+      ],
+      "est": "0.5d",
+      "dependencies": []
+    },
+    {
+      "id": "T-002",
+      "title": "목데이터 및 검색 API 스텁 구현",
+      "status": "BACKLOG",
+      "description": "MVP용 목데이터(JSON)와 이를 필터링/검색하는 클라이언트 API 스텁을 구현합니다. 추후 실제 API로 대체 가능하도록 인터페이스 유지.",
+      "steps": [
+        "목데이터 추가: src/features/products/lib/mock-products.json",
+        "API 함수: src/features/products/api.ts → searchProducts(params) (키워드, 브랜드, 카테고리, 단백질/나트륨 임계값 필터)",
+        "ts-pattern으로 필터링 로직 가독성 개선",
+        "react-query 훅: useProductSearch(params) 작성",
+        "테스트 호출 예시를 임시 페이지/스토리로 확인"
+      ],
+      "deliverables": [
+        "src/features/products/lib/mock-products.json",
+        "src/features/products/api.ts"
+      ],
+      "acceptanceCriteria": [
+        "필터 조합에 따른 결과가 일관적으로 반환",
+        "react-query 캐시 정상 작동",
+        "네트워크 없이도 동작"
+      ],
+      "est": "0.5d",
+      "dependencies": ["T-001"]
+    },
+    {
+      "id": "T-003",
+      "title": "검색 바 및 기본 필터 폼(UI) 구현 (F-01)",
+      "status": "BACKLOG",
+      "description": "검색 바와 기본 필터 UI를 구현합니다. react-hook-form + zod로 유효성 검사를 적용하고 제출 시 검색 훅을 트리거합니다.",
+      "steps": [
+        "컴포넌트: src/features/products/components/SearchBar.tsx ('use client')",
+        "컴포넌트: src/features/products/components/FilterPanel.tsx (브랜드/카테고리/단백질min/나트륨max)",
+        "폼: react-hook-form + zodResolver",
+        "UI: shadcn input/select/checkbox 활용",
+        "제출 시 useProductSearch(params) 호출하도록 연결",
+        "홈 화면에 배치(또는 전용 검색 페이지 구성)"
+      ],
+      "deliverables": [
+        "src/features/products/components/SearchBar.tsx",
+        "src/features/products/components/FilterPanel.tsx"
+      ],
+      "acceptanceCriteria": [
+        "검색어/필터 변경 시 결과 재조회",
+        "유효성 오류 메시지 노출",
+        "UI 반응형 동작"
+      ],
+      "est": "0.5d",
+      "dependencies": ["T-002"]
+    },
+    {
+      "id": "T-004",
+      "title": "검색 결과 그리드 및 ProductCard + '비교하기' 버튼 (F-02 준비)",
+      "status": "BACKLOG",
+      "description": "검색 결과를 카드 그리드로 렌더링하고 각 카드에 '비교하기' 버튼을 배치합니다. 유효한 picsum.photos 이미지 플레이스홀더 사용.",
+      "steps": [
+        "컴포넌트: src/features/products/components/ProductCard.tsx (이미지/이름/요약/비교하기)",
+        "컴포넌트: src/features/products/components/ProductGrid.tsx",
+        "이미지: https://picsum.photos/seed/{productId}/400/300",
+        "버튼 클릭 시 비교 스토어에 추가(최대 4개)"
+      ],
+      "deliverables": [
+        "src/features/products/components/ProductCard.tsx",
+        "src/features/products/components/ProductGrid.tsx"
+      ],
+      "acceptanceCriteria": [
+        "결과가 그리드로 표시",
+        "각 카드에 비교하기 버튼 노출",
+        "비교 버튼 비활성화 조건(4개 초과 방지) 반영"
+      ],
+      "est": "0.5d",
+      "dependencies": ["T-003"]
+    },
+    {
+      "id": "T-005",
+      "title": "비교 바(Sticky Footer) + Zustand 저장 (F-02)",
+      "status": "BACKLOG",
+      "description": "하단 고정 비교 바를 구현하고, 선택된 제품 리스트를 zustand + persist로 로컬에 저장합니다. 제거/전체삭제/비교 실행 버튼 포함.",
+      "steps": [
+        "zustand 스토어: src/features/products/hooks/useCompareStore.ts (max 4, add/remove/clear)",
+        "컴포넌트: src/features/products/components/CompareBar.tsx",
+        "썸네일/제품명/개별 제거(X)/전체 삭제/비교하기 버튼",
+        "페이지 이동 간 상태 유지(persist)"
+      ],
+      "deliverables": [
+        "src/features/products/hooks/useCompareStore.ts",
+        "src/features/products/components/CompareBar.tsx"
+      ],
+      "acceptanceCriteria": [
+        "선택 항목이 바에 즉시 반영",
+        "새로고침/페이지 이동 후에도 유지",
+        "최대 4개 제약 정상 동작"
+      ],
+      "est": "0.5d",
+      "dependencies": ["T-004"]
+    },
+    {
+      "id": "T-006",
+      "title": "비교 페이지 라우트 생성 및 스켈레톤 (F-03 기반)",
+      "status": "BACKLOG",
+      "description": "'/compare' 라우트를 생성하고 비교 스켈레톤(차트 영역, 표 영역, 공유 영역)을 구성합니다. page.tsx의 params는 Promise 타입으로 선언.",
+      "steps": [
+        "파일: src/app/compare/page.tsx (use client 지시어, params: Promise)",
+        "비교 스토어에서 선택 항목 로드",
+        "레이아웃 섹션 구성: 레이더, 바 차트, 상세 표 자리잡기",
+        "구매하기/공유하기 버튼 영역 배치"
+      ],
+      "deliverables": ["src/app/compare/page.tsx"],
+      "acceptanceCriteria": [
+        "선택된 제품이 비교 페이지에 표시",
+        "빈 상태 UX 제공(선택 항목 없을 때 안내)",
+        "라우트 전환 정상 동작"
+      ],
+      "est": "0.5d",
+      "dependencies": ["T-005"]
+    },
+    {
+      "id": "T-007",
+      "title": "레이더 차트 구현 (F-04)",
+      "status": "BACKLOG",
+      "description": "제품 4개까지의 핵심 지표(칼로리, 탄수, 단백질, 지방, 당류, 나트륨, 콜레스테롤)를 레이더 차트로 시각화합니다. 상대적 스케일 고려.",
+      "steps": [
+        "의존성 설치: npm i recharts",
+        "컴포넌트: src/features/products/components/RadarNutritionChart.tsx",
+        "색상 팔레트 정의 및 범례",
+        "지표 스케일링(높을수록 좋은/낮을수록 좋은 지표 시각적 구분)"
+      ],
+      "deliverables": [
+        "src/features/products/components/RadarNutritionChart.tsx"
+      ],
+      "acceptanceCriteria": [
+        "최대 4개 제품 레이더 중첩 표시",
+        "범례/툴팁 제공",
+        "반응형 렌더링"
+      ],
+      "est": "0.5d",
+      "dependencies": ["T-006"]
+    },
+    {
+      "id": "T-008",
+      "title": "바 차트 구현 (F-03의 바 차트)",
+      "status": "BACKLOG",
+      "description": "핵심 영양성분별(축 기준)로 제품 간 값을 막대그래프로 비교합니다. 정렬/최대값 강조.",
+      "steps": [
+        "컴포넌트: src/features/products/components/BarNutritionChart.tsx (recharts BarChart)",
+        "지표 선택 탭/셀렉트 제공",
+        "최대/최소 하이라이트 스타일링"
+      ],
+      "deliverables": [
+        "src/features/products/components/BarNutritionChart.tsx"
+      ],
+      "acceptanceCriteria": [
+        "선택 지표에 따른 바 차트 업데이트",
+        "최대/최소값 시각적 강조",
+        "툴팁 수치 표시"
+      ],
+      "est": "0.5d",
+      "dependencies": ["T-007"]
+    },
+    {
+      "id": "T-009",
+      "title": "상세 정보 표 구현 (F-03의 표) + shadcn table 설치",
+      "status": "BACKLOG",
+      "description": "제품 이미지, 용량, 제조사, 영양 수치 등 상세 정보를 표로 제공합니다. shadcn table 컴포넌트를 설치합니다.",
+      "steps": [
+        "shadcn 설치 명령: npx shadcn@latest add table",
+        "컴포넌트: src/features/products/components/ComparisonTable.tsx",
+        "수치 포맷팅 및 단위 표기",
+        "가로 스크롤 대응"
+      ],
+      "deliverables": ["src/features/products/components/ComparisonTable.tsx"],
+      "acceptanceCriteria": [
+        "표에서 모든 선택 제품의 주요 수치가 정렬되어 표시",
+        "모바일에서 수평 스크롤 가능",
+        "시맨틱/접근성 속성 반영"
+      ],
+      "est": "0.5d",
+      "dependencies": ["T-008"]
+    },
+    {
+      "id": "T-010",
+      "title": "커머스 연동: '구매하기' 버튼 + 어필리에이트 링크 (F-05)",
+      "status": "BACKLOG",
+      "description": "카드/비교 화면에 '구매하기' 버튼을 배치하고 affiliateUrl로 새 탭 이동합니다. 추적 파라미터 유지를 위한 헬퍼 추가.",
+      "steps": [
+        "타입 확장: Product.affiliateUrl",
+        "버튼 공통 컴포넌트화",
+        "a target='_blank' rel='noopener noreferrer' 적용",
+        "추적 파라미터 합성 유틸: buildAffiliateUrl(base, params)"
+      ],
+      "deliverables": ["공통 구매 버튼 컴포넌트", "유틸 함수"],
+      "acceptanceCriteria": [
+        "버튼 클릭 시 제휴 링크 새 탭 이동",
+        "링크 파손/공백값 예외 처리",
+        "비교 화면/카드 모두에서 노출"
+      ],
+      "est": "0.25d",
+      "dependencies": ["T-009"]
+    },
+    {
+      "id": "T-011",
+      "title": "공유하기 기능(이미지/링크) 구현 (F-06)",
+      "status": "BACKLOG",
+      "description": "비교 결과 영역을 하나의 이미지로 캡처/저장/클립보드 복사하고, 링크 공유(선택 제품 ID를 쿼리스트링으로 직렬화) 기능을 제공합니다.",
+      "steps": [
+        "의존성 설치: npm i html-to-image",
+        "공유 컴포넌트: src/features/products/components/ShareActions.tsx",
+        "캡처 대상 ref로 영역 이미지화 + 파일 저장",
+        "navigator.share 지원 시 네이티브 공유, 미지원 시 링크/이미지 복사",
+        "워터마크(서비스명/URL) 오버레이"
+      ],
+      "deliverables": ["src/features/products/components/ShareActions.tsx"],
+      "acceptanceCriteria": [
+        "이미지 생성 성공/실패 토스트 노출",
+        "링크 복사 시 비교 페이지에서 동일 상태 복원",
+        "워터마크 포함"
+      ],
+      "est": "0.5d",
+      "dependencies": ["T-010"]
+    },
+    {
+      "id": "T-012",
+      "title": "접근성/반응형/폴리싱 및 오류 처리",
+      "status": "BACKLOG",
+      "description": "a11y 속성과 키보드 내비게이션을 보강하고, 모바일/태블릿/데스크톱 반응형 보정을 진행합니다. 에러/빈 상태/로딩 UI 통일.",
+      "steps": [
+        "aria-label/role/alt 등 점검",
+        "focus 트랩, Skip to content, 키보드 트리거 확인",
+        "로딩/빈 상태 컴포넌트 통일",
+        "토스트/에러 메시지 컨벤션 정리"
+      ],
+      "deliverables": ["접근성/반응형 보정 커밋"],
+      "acceptanceCriteria": [
+        "기본 키보드 사용성 확보",
+        "모바일(375px)/태블릿(768px)/데스크톱(1280px) 레이아웃 안정",
+        "주요 동작에서 사용자 피드백 제공"
+      ],
+      "est": "0.5d",
+      "dependencies": ["T-011"]
+    },
+    {
+      "id": "T-013",
+      "title": "README 사용 가이드 및 데모 데이터 개선",
+      "status": "BACKLOG",
+      "description": "프로젝트 사용 방법, 설치/실행, shadcn 설치 명령어, 주요 의사결정 기록을 README에 정리하고 목데이터를 현실적으로 다듬습니다.",
+      "steps": [
+        "README에 기능 개요/아키텍처/명령어/주의사항 추가",
+        "목데이터 수치 범위 검토 및 정규화",
+        "향후 백엔드 연동 계획 섹션 작성"
+      ],
+      "deliverables": ["README.md 업데이트", "정제된 mock-products.json"],
+      "acceptanceCriteria": [
+        "로컬에서 문서만 보고 실행 가능",
+        "목데이터로 모든 기능 데모 가능",
+        "링크/명령어 오탈자 없음"
+      ],
+      "est": "0.25d",
+      "dependencies": ["T-012"]
+    }
+  ]
+}
