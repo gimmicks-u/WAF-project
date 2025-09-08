@@ -12,6 +12,9 @@ services:
       - BACKEND=http://backend-server:3000
     depends_on:
       - backend-server
+    volumes:
+      - ./modsecurity-crs-nginx/nginx/rules/custom_rules.conf:/etc/nginx/conf.d/custom_rules.conf
+      - ./modsecurity-crs-nginx/modsecurity-crs/rules/custom_rules.conf:/etc/modsecurity.d/owasp-crs/rules/custom_rules.conf
 
   backend-server:
     build: ./backend-server
