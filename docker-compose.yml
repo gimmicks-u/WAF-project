@@ -9,9 +9,10 @@ services:
     networks:
       - waf_network
     environment:
-      - BACKEND=http://backend-server:3000
+      - BACKEND=http://tenant-example:3000
     depends_on:
       - backend-server
+      - tenant-example
     volumes:
       - ./modsecurity-crs-nginx/nginx/rules/custom_rules.conf:/etc/nginx/conf.d/custom_rules.conf:ro
       - ./modsecurity-crs-nginx/nginx/conf.d/40-logformat.conf:/etc/nginx/conf.d/40-logformat.conf:ro
@@ -27,15 +28,24 @@ services:
     container_name: backend-server
     restart: always
     ports:
-      - 3000:3000
+      - 3001:3001
     networks:
       - waf_network
     environment:
       - NODE_ENV=production
-      - PORT=3000
+      - PORT=3001
       - DATABASE_URL=postgres://waf:change_me@postgres:5432/waf_logs
     depends_on:
       - postgres
+
+  tenant-example:
+    build: ./tenant-example
+    container_name: tenant-example
+    restart: always
+    ports:
+      - 3000:3000
+    networks:
+      - waf_network
 
   postgres:
     image: postgres:16-alpine
@@ -48,11 +58,11 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
     ports:
-      - "5432:5432"
+      - '5432:5432'
     networks:
       - waf_network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U waf -d waf_logs"]
+      test: ['CMD-SHELL', 'pg_isready -U waf -d waf_logs']
       interval: 10s
       timeout: 5s
       retries: 5
@@ -72,6 +82,7 @@ services:
     depends_on:
       - waf-nginx
       - backend-server
+      - tenant-example
 
 networks:
   waf_network:
