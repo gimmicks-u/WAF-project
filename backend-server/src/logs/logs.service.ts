@@ -1,4 +1,254 @@
 import { Injectable } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { Log, LogAction, LogSource } from './entities/log.entity';
+import { LogsQueryDto } from './dto/logs-query.dto';
+
+// Type definitions for WAF log processing
+interface WafMessageDetails {
+  rev: string;
+  ver: string;
+  data: string;
+  file: string;
+  tags: string[];
+  match: string;
+  ruleId: string | number;
+  accuracy: string | number;
+  maturity: string | number;
+  severity: string | number;
+  reference: string;
+  lineNumber: string | number;
+}
+
+interface WafMessage {
+  details: WafMessageDetails;
+  message: string;
+}
+
+interface WafRequest {
+  uri?: string;
+  method?: string;
+  headers?: Record<string, string>;
+  http_version?: number | string;
+  body?: string | null;
+}
+
+interface WafResponse {
+  body?: string | null;
+  headers?: Record<string, string>;
+  http_code?: number;
+  status?: number;
+}
+
+interface WafTransaction {
+  host_ip?: string;
+  request?: WafRequest;
+  messages?: WafMessage[];
+  producer?: unknown;
+  response?: WafResponse;
+  client_ip?: string;
+  host_port?: number;
+  server_id?: string;
+  unique_id?: string;
+  time_stamp?: string;
+  client_port?: number;
+}
+
+interface WafIngestLog {
+  source: 'waf';
+  timestamp: string;
+  transaction: WafTransaction;
+  [key: string]: unknown;
+}
+
+interface AccessIngestLog {
+  source: 'access';
+  timestamp?: string;
+  time?: string;
+  '@timestamp'?: string;
+  status?: number | string | null;
+  remote_addr?: string;
+  request_method?: string;
+  request_uri?: string;
+  uri?: string;
+  [key: string]: unknown;
+}
+
+type IngestLog = WafIngestLog | AccessIngestLog;
+
+interface NormalizedRecord {
+  ts: Date;
+  source: LogSource;
+  action: LogAction;
+  ip: string | null;
+  method: string | null;
+  uri: string | null;
+  status: number | null;
+  rule_ids: number[] | null;
+  request_headers: Record<string, string> | null;
+  response_headers: Record<string, string> | null;
+  request_body: string | null;
+  response_body: string | null;
+  raw: unknown;
+}
 
 @Injectable()
-export class LogsService {}
+export class LogsService {
+  constructor(
+    @InjectRepository(Log)
+    private logRepository: Repository<Log>,
+  ) {}
+
+  async ingestLogs(body: IngestLog | IngestLog[]): Promise<{ success: boolean }> {
+    const records: IngestLog[] = Array.isArray(body) ? body : [body];
+    
+    const logsToSave = records.map(record => {
+      const normalized = this.normalizeRecord(record);
+      return this.logRepository.create(normalized);
+    });
+
+    await this.logRepository.save(logsToSave);
+    return { success: true };
+  }
+
+  async getLogs(query: LogsQueryDto) {
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 50;
+    const offset = (page - 1) * limit;
+
+    const queryBuilder = this.logRepository.createQueryBuilder('log');
+
+    // Apply filters
+    if (query.from) {
+      queryBuilder.andWhere('log.ts >= :from', { from: new Date(query.from) });
+    }
+    if (query.to) {
+      queryBuilder.andWhere('log.ts <= :to', { to: new Date(query.to) });
+    }
+    if (query.ip) {
+      queryBuilder.andWhere('log.ip = :ip', { ip: query.ip });
+    }
+    if (query.uri) {
+      queryBuilder.andWhere('log.uri ILIKE :uri', { uri: `%${query.uri}%` });
+    }
+    if (query.method) {
+      queryBuilder.andWhere('log.method = :method', { method: query.method.toUpperCase() });
+    }
+    if (query.status !== undefined) {
+      queryBuilder.andWhere('log.status = :status', { status: query.status });
+    }
+    if (query.action) {
+      queryBuilder.andWhere('log.action = :action', { action: query.action });
+    }
+    if (query.source) {
+      queryBuilder.andWhere('log.source = :source', { source: query.source });
+    }
+    if (query.rule_id !== undefined) {
+      queryBuilder.andWhere(':rule_id = ANY(log.rule_ids)', { rule_id: query.rule_id });
+    }
+
+    // Get total count
+    const total = await queryBuilder.getCount();
+
+    // Apply pagination and ordering
+    queryBuilder
+      .orderBy('log.ts', 'DESC')
+      .skip(offset)
+      .take(limit);
+
+    const items = await queryBuilder.getMany();
+
+    return {
+      items,
+      total,
+      page,
+      limit,
+      hasNext: offset + limit < total,
+    };
+  }
+
+  private normalizeRecord(record: IngestLog): NormalizedRecord {
+    const source = record.source === 'waf' ? LogSource.WAF : LogSource.ACCESS;
+
+    // Determine timestamp
+    let tsInput: string | number = Date.now();
+    if (source === LogSource.WAF) {
+      tsInput = (record as WafIngestLog).timestamp;
+    } else if (source === LogSource.ACCESS) {
+      const r = record as AccessIngestLog;
+      tsInput = r.timestamp ?? r.time ?? r['@timestamp'] ?? Date.now();
+    }
+
+    const normalized: NormalizedRecord = {
+      ts: new Date(tsInput),
+      source,
+      raw: record,
+      action: LogAction.UNKNOWN,
+      ip: null,
+      method: null,
+      uri: null,
+      status: null,
+      rule_ids: null,
+      request_headers: null,
+      response_headers: null,
+      request_body: null,
+      response_body: null,
+    };
+
+    if (source === LogSource.ACCESS) {
+      const r = record as AccessIngestLog;
+      const statusVal = r.status != null ? Number(r.status) : null;
+      normalized.status = Number.isFinite(statusVal as number)
+        ? (statusVal as number)
+        : null;
+      normalized.action =
+        normalized.status != null && (normalized.status as number) >= 400
+          ? LogAction.BLOCKED
+          : LogAction.ALLOWED;
+      normalized.ip = r.remote_addr ?? null;
+      normalized.method = (r.request_method || '').toUpperCase() || null;
+      normalized.uri = r.request_uri || r.uri || null;
+    } else if (source === LogSource.WAF) {
+      const tx = (record as WafIngestLog).transaction || {};
+      const req = tx.request || {};
+      const res = tx.response || {};
+
+      const status =
+        (res.http_code as number | undefined) ?? (res.status as number | undefined) ?? null;
+      normalized.status = status ?? null;
+
+      if (status != null && status >= 400) {
+        normalized.action = LogAction.BLOCKED;
+      } else if (Array.isArray(tx.messages) && tx.messages.length > 0) {
+        normalized.action = LogAction.DETECTED;
+      } else {
+        normalized.action = LogAction.ALLOWED;
+      }
+
+      normalized.ip = tx.client_ip ?? null;
+      normalized.method = (req.method || '') ? (req.method as string).toUpperCase() : null;
+      normalized.uri = req.uri ?? null;
+
+      // Collect rule IDs as numbers
+      if (Array.isArray(tx.messages)) {
+        const ids = tx.messages
+          .map((m) => {
+            const rawId = m?.details?.ruleId as string | number | undefined;
+            if (rawId === undefined || rawId === null) return null;
+            const n = typeof rawId === 'number' ? rawId : Number(rawId);
+            return Number.isFinite(n) ? Math.trunc(n) : null;
+          })
+          .filter((n): n is number => n !== null);
+        normalized.rule_ids = ids.length ? ids : null;
+      }
+
+      // Headers & bodies
+      normalized.request_headers = (req.headers as Record<string, string>) || null;
+      normalized.response_headers = (res.headers as Record<string, string>) || null;
+      normalized.request_body = (req.body as string | null) || null;
+      normalized.response_body = (res.body as string | null) || null;
+    }
+
+    return normalized;
+  }
+}
