@@ -1,45 +1,77 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { mockLogs } from '@/lib/mock-data';
-import { SecurityLog, LogFilter } from '@/lib/types';
-import { Search, Filter, Download, Eye, AlertTriangle, Shield, Activity } from 'lucide-react';
+import { fetchLogs, buildLogsQueryParams } from '@/lib/api/logs';
+import { MappedSecurityLog } from '@/lib/api/types';
+import { Search, Filter, Download, Eye, AlertTriangle, Shield, Activity, Loader2, RefreshCw } from 'lucide-react';
 import { format } from 'date-fns';
 
 export default function LogsPage() {
-  const [logs] = useState<SecurityLog[]>(mockLogs);
-  const [filters, setFilters] = useState<LogFilter>({});
+  const [logs, setLogs] = useState<MappedSecurityLog[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedSeverity, setSelectedSeverity] = useState<string>('all');
   const [selectedAction, setSelectedAction] = useState<string>('all');
+  const [selectedSource, setSelectedSource] = useState<string>('all');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalLogs, setTotalLogs] = useState(0);
+  const [hasNextPage, setHasNextPage] = useState(false);
+  const itemsPerPage = 50;
 
-  const filteredLogs = useMemo(() => {
-    return logs.filter((log) => {
-      const matchesSearch = searchTerm === '' || 
-        log.sourceIP.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        log.requestURL.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        log.threatType.toLowerCase().includes(searchTerm.toLowerCase());
+  // Load logs from API
+  const loadLogs = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    
+    try {
+      const queryParams = buildLogsQueryParams(
+        {
+          searchTerm,
+          selectedAction,
+          selectedSource,
+        },
+        currentPage,
+        itemsPerPage
+      );
       
-      const matchesSeverity = selectedSeverity === 'all' || log.severity === selectedSeverity;
-      const matchesAction = selectedAction === 'all' || log.action === selectedAction;
+      const response = await fetchLogs(queryParams);
+      
+      // Apply client-side severity filter (since backend doesn't have severity)
+      let filteredLogs = response.logs;
+      if (selectedSeverity !== 'all') {
+        filteredLogs = filteredLogs.filter(log => log.severity === selectedSeverity);
+      }
+      
+      setLogs(filteredLogs);
+      setTotalLogs(response.total);
+      setHasNextPage(response.hasNext);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load logs');
+      console.error('Error loading logs:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [searchTerm, selectedAction, selectedSource, selectedSeverity, currentPage]);
 
-      return matchesSearch && matchesSeverity && matchesAction;
-    });
-  }, [logs, searchTerm, selectedSeverity, selectedAction]);
+  // Load logs on component mount and when filters change
+  useEffect(() => {
+    loadLogs();
+  }, [loadLogs]);
 
-  const stats = useMemo(() => {
-    const totalLogs = filteredLogs.length;
-    const blockedLogs = filteredLogs.filter(log => log.action === 'blocked').length;
-    const detectedLogs = filteredLogs.filter(log => log.action === 'detected').length;
-    const criticalLogs = filteredLogs.filter(log => log.severity === 'critical').length;
-
-    return { totalLogs, blockedLogs, detectedLogs, criticalLogs };
-  }, [filteredLogs]);
+  // Calculate stats from current logs
+  const stats = {
+    totalLogs: totalLogs,
+    blockedLogs: logs.filter(log => log.action === 'blocked').length,
+    detectedLogs: logs.filter(log => log.action === 'detected').length,
+    allowedLogs: logs.filter(log => log.action === 'allowed').length,
+    criticalLogs: logs.filter(log => log.severity === 'critical').length,
+  };
 
   const getSeverityColor = (severity: string) => {
     switch (severity) {
@@ -57,36 +89,59 @@ export default function LogsPage() {
   };
 
   const getActionColor = (action: string) => {
-    return action === 'blocked' 
-      ? 'bg-red-100 text-red-800' 
-      : 'bg-yellow-100 text-yellow-800';
+    switch (action) {
+      case 'blocked':
+        return 'bg-red-100 text-red-800';
+      case 'detected':
+        return 'bg-yellow-100 text-yellow-800';
+      case 'allowed':
+        return 'bg-green-100 text-green-800';
+      default:
+        return 'bg-gray-100 text-gray-800';
+    }
   };
 
   const handleClearFilters = () => {
     setSearchTerm('');
     setSelectedSeverity('all');
     setSelectedAction('all');
-    setFilters({});
+    setSelectedSource('all');
+    setCurrentPage(1);
+  };
+
+  const handleRefresh = () => {
+    loadLogs();
   };
 
   return (
     <div className="space-y-6">
       {/* Page Header */}
-      <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-slate-900">Security Logs</h1>
           <p className="text-slate-600 mt-1">
             Monitor and analyze security events detected by your WAF
           </p>
         </div>
-        <Button variant="outline" className="gap-2">
-          <Download className="w-4 h-4" />
-          Export Logs
-        </Button>
+        <div className="flex gap-2">
+          <Button 
+            variant="outline" 
+            className="gap-2"
+            onClick={handleRefresh}
+            disabled={isLoading}
+          >
+            <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
+          <Button variant="outline" className="gap-2">
+            <Download className="w-4 h-4" />
+            Export Logs
+          </Button>
+        </div>
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
         <Card className="border-slate-200">
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
@@ -129,6 +184,19 @@ export default function LogsPage() {
         <Card className="border-slate-200">
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-green-50 flex items-center justify-center">
+                <Shield className="w-4 h-4 text-green-600" />
+              </div>
+              <div>
+                <p className="text-sm text-slate-600">Allowed</p>
+                <p className="text-2xl font-bold text-slate-900">{stats.allowedLogs}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="border-slate-200">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
               <div className="w-8 h-8 rounded-lg bg-red-50 flex items-center justify-center">
                 <AlertTriangle className="w-4 h-4 text-red-600" />
               </div>
@@ -161,11 +229,17 @@ export default function LogsPage() {
               <Input
                 placeholder="Search IP, URL, or threat type..."
                 value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                onChange={(e) => {
+                  setSearchTerm(e.target.value);
+                  setCurrentPage(1);
+                }}
                 className="pl-10"
               />
             </div>
-            <Select value={selectedSeverity} onValueChange={setSelectedSeverity}>
+            <Select value={selectedSeverity} onValueChange={(value) => {
+              setSelectedSeverity(value);
+              setCurrentPage(1);
+            }}>
               <SelectTrigger className="w-40">
                 <SelectValue placeholder="Severity" />
               </SelectTrigger>
@@ -177,7 +251,10 @@ export default function LogsPage() {
                 <SelectItem value="low">Low</SelectItem>
               </SelectContent>
             </Select>
-            <Select value={selectedAction} onValueChange={setSelectedAction}>
+            <Select value={selectedAction} onValueChange={(value) => {
+              setSelectedAction(value);
+              setCurrentPage(1);
+            }}>
               <SelectTrigger className="w-32">
                 <SelectValue placeholder="Action" />
               </SelectTrigger>
@@ -185,6 +262,20 @@ export default function LogsPage() {
                 <SelectItem value="all">All Actions</SelectItem>
                 <SelectItem value="blocked">Blocked</SelectItem>
                 <SelectItem value="detected">Detected</SelectItem>
+                <SelectItem value="allowed">Allowed</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={selectedSource} onValueChange={(value) => {
+              setSelectedSource(value);
+              setCurrentPage(1);
+            }}>
+              <SelectTrigger className="w-32">
+                <SelectValue placeholder="Source" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Sources</SelectItem>
+                <SelectItem value="waf">WAF</SelectItem>
+                <SelectItem value="access">Access</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -198,19 +289,39 @@ export default function LogsPage() {
             <div>
               <CardTitle className="text-slate-900">Security Events</CardTitle>
               <CardDescription>
-                Showing {filteredLogs.length} of {logs.length} events
+                {isLoading ? (
+                  'Loading events...'
+                ) : error ? (
+                  'Error loading events'
+                ) : (
+                  `Showing ${logs.length} of ${totalLogs} events (Page ${currentPage})`
+                )}
               </CardDescription>
             </div>
           </div>
         </CardHeader>
         <CardContent>
+          {error ? (
+            <div className="text-center py-8">
+              <p className="text-red-600 mb-4">{error}</p>
+              <Button onClick={handleRefresh} variant="outline">
+                <RefreshCw className="w-4 h-4 mr-2" />
+                Retry
+              </Button>
+            </div>
+          ) : isLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="w-8 h-8 animate-spin text-slate-600" />
+              <span className="ml-2 text-slate-600">Loading logs...</span>
+            </div>
+          ) : (
           <div className="space-y-3">
-            {filteredLogs.length === 0 ? (
+            {logs.length === 0 ? (
               <div className="text-center py-8 text-slate-500">
                 No security events found matching your criteria.
               </div>
             ) : (
-              filteredLogs.map((log) => (
+              logs.map((log) => (
                 <div
                   key={log.id}
                   className="p-4 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
@@ -277,6 +388,49 @@ export default function LogsPage() {
               ))
             )}
           </div>
+          )}
+          
+          {/* Pagination Controls */}
+          {!isLoading && !error && totalLogs > itemsPerPage && (
+            <div className="flex items-center justify-between mt-6 pt-4 border-t">
+              <div className="text-sm text-slate-600">
+                Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, totalLogs)} of {totalLogs} events
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                  disabled={currentPage === 1}
+                >
+                  Previous
+                </Button>
+                <div className="flex items-center gap-1">
+                  <span className="text-sm text-slate-600">Page</span>
+                  <Input
+                    type="number"
+                    value={currentPage}
+                    onChange={(e) => {
+                      const page = parseInt(e.target.value) || 1;
+                      setCurrentPage(Math.max(1, Math.min(page, Math.ceil(totalLogs / itemsPerPage))));
+                    }}
+                    className="w-16 h-8 text-center"
+                    min={1}
+                    max={Math.ceil(totalLogs / itemsPerPage)}
+                  />
+                  <span className="text-sm text-slate-600">of {Math.ceil(totalLogs / itemsPerPage)}</span>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(prev => prev + 1)}
+                  disabled={!hasNextPage}
+                >
+                  Next
+                </Button>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>
