@@ -35,8 +35,24 @@ services:
       - NODE_ENV=production
       - PORT=3001
       - DATABASE_URL=postgres://waf:change_me@postgres:5432/waf_logs
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      - APP_JWT_SECRET=${APP_JWT_SECRET}
     depends_on:
       - postgres
+
+  frontend:
+    build: ./frontend
+    container_name: frontend
+    restart: always
+    ports:
+      - 3002:3000
+    networks:
+      - waf_network
+    environment:
+      - NEXT_PUBLIC_GOOGLE_CLIENT_ID=${NEXT_PUBLIC_GOOGLE_CLIENT_ID}
+      - NEXT_PUBLIC_API_BASE_URL=http://backend-server:3001
+    depends_on:
+      - backend-server
 
   tenant-example:
     build: ./tenant-example

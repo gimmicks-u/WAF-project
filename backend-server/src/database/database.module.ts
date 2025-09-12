@@ -2,6 +2,7 @@ import { Module, Global } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { Log } from '../logs/entities/log.entity';
+import { User } from '../users/entities/user.entity';
 
 @Global()
 @Module({
@@ -11,8 +12,8 @@ import { Log } from '../logs/entities/log.entity';
       useFactory: (configService: ConfigService) => ({
         type: 'postgres',
         url: configService.get('DATABASE_URL'),
-        entities: [Log],
-        synchronize: false, // Set to false in production, use migrations instead
+        entities: [Log, User],
+        synchronize: true, // Set to false in production, use migrations instead
         logging: configService.get('NODE_ENV') === 'development',
         extra: {
           max: 10,
@@ -25,4 +26,3 @@ import { Log } from '../logs/entities/log.entity';
   ],
 })
 export class DatabaseModule {}
-

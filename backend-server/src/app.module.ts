@@ -5,6 +5,7 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { DatabaseModule } from './database/database.module';
 import { LogsModule } from './logs/logs.module';
+import { AuthModule } from './auth/auth.module';
 
 @Module({
   imports: [
@@ -12,6 +13,7 @@ import { LogsModule } from './logs/logs.module';
     ScheduleModule.forRoot(),
     DatabaseModule,
     LogsModule,
+    AuthModule,
   ],
   controllers: [AppController],
   providers: [AppService],

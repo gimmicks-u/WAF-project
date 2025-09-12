@@ -1,27 +1,23 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { User } from './types';
-import { mockUser } from './mock-data';
 
 interface AuthState {
   user: User | null;
+  token: string | null;
   isAuthenticated: boolean;
-  login: (user: User) => void;
+  login: (user: User, token: string) => void;
   logout: () => void;
-  mockGoogleLogin: () => void;
 }
 
 export const useAuthStore = create<AuthState>()(
   persist(
     (set) => ({
       user: null,
+      token: null,
       isAuthenticated: false,
-      login: (user) => set({ user, isAuthenticated: true }),
-      logout: () => set({ user: null, isAuthenticated: false }),
-      mockGoogleLogin: () => {
-        // Simulate Google login with mock user
-        set({ user: mockUser, isAuthenticated: true });
-      },
+      login: (user, token) => set({ user, token, isAuthenticated: true }),
+      logout: () => set({ user: null, token: null, isAuthenticated: false }),
     }),
     {
       name: 'waf-auth-storage',

@@ -31,11 +31,16 @@ export default function RuleDialog({
   onSave,
   mode,
 }: RuleDialogProps) {
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<{
+    name: string;
+    description: string;
+    content: string;
+    isActive: boolean;
+  }>({
     name: rule?.name || '',
     description: rule?.description || '',
     content: rule?.content || '',
-    isActive: rule?.isActive || true,
+    isActive: rule?.isActive ?? true,
   });
 
   const handleSave = () => {
@@ -99,7 +104,7 @@ export default function RuleDialog({
               id="isActive"
               checked={formData.isActive}
               onCheckedChange={(checked) =>
-                setFormData({ ...formData, isActive: checked as boolean })
+                setFormData({ ...formData, isActive: checked === true })
               }
             />
             <Label htmlFor="isActive">Rule is active</Label>

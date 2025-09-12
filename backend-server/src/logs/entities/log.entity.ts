@@ -1,9 +1,4 @@
-import {
-  Entity,
-  PrimaryGeneratedColumn,
-  Column,
-  Index,
-} from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, Index } from 'typeorm';
 
 export enum LogSource {
   ACCESS = 'access',
@@ -28,16 +23,10 @@ export class Log {
   @Column({ type: 'timestamptz' })
   ts: Date;
 
-  @Column({
-    type: 'enum',
-    enum: LogSource,
-  })
-  source: LogSource;
+  @Column({ type: 'text' })
+  source: string | null;
 
-  @Column({
-    type: 'enum',
-    enum: LogAction,
-  })
+  @Column({ type: 'text' })
   action: LogAction;
 
   @Column({ type: 'inet', nullable: true })
