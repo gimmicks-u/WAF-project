@@ -18,5 +18,5 @@ SecAction "id:1200005,phase:5,pass,log,auditlog,msg:'tenant=%{tx.user_id}'"
 # Block a User-Agent
 # SecRule REQUEST_HEADERS:User-Agent "@contains badbot" #   "id:900202,phase:1,deny,status:403,msg:'Blocked bad bot'"
 # BEGIN CUSTOM RULES - DO NOT EDIT BELOW
-
+SecRule REQUEST_HEADERS:User-Agent "@contains BadBot" "phase:1,deny,status:403,msg:'차단된 User-Agent',id:1202000"
 # END CUSTOM RULES - DO NOT EDIT ABOVE
