@@ -17,11 +17,17 @@ services:
       - ./modsecurity-crs-nginx/nginx/rules/custom_rules.conf:/etc/nginx/conf.d/custom_rules.conf:ro
       - ./modsecurity-crs-nginx/nginx/conf.d/40-logformat.conf:/etc/nginx/conf.d/40-logformat.conf:ro
       - ./modsecurity-crs-nginx/nginx/templates/logging.conf.template:/etc/nginx/templates/conf.d/logging.conf.template:ro
+      - ./modsecurity-crs-nginx/nginx/templates/users.conf.template:/etc/nginx/templates/conf.d/users.conf.template:ro
       - ./modsecurity-crs-nginx/modsecurity-crs/rules/custom_rules.conf:/etc/modsecurity.d/owasp-crs/rules/custom_rules.conf:ro
       - ./modsecurity-crs-nginx/modsecurity-crs/templates/modsecurity-override.conf.template:/etc/nginx/templates/modsecurity.d/modsecurity-override.conf.template:ro
       - nginx_logs:/var/log/nginx
       - ./modsecurity-crs-nginx/nginx/logs/access.json.log:/tmp/access.json.log
       - ./modsecurity-crs-nginx/modsecurity-crs/logs/modsec_audit.json:/tmp/modsec_audit.json
+      # User-specific configurations
+      - ./modsecurity-crs-nginx/nginx/users:/etc/nginx/users:rw
+      - ./modsecurity-crs-nginx/modsecurity-crs/users:/etc/modsecurity.d/owasp-crs/rules/users:rw
+      # Docker socket for nginx reload from backend
+      - /var/run/docker.sock:/var/run/docker.sock:ro
 
   backend-server:
     build: ./backend-server
@@ -37,6 +43,12 @@ services:
       - DATABASE_URL=postgres://waf:change_me@postgres:5432/waf_logs
       - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
       - APP_JWT_SECRET=${APP_JWT_SECRET}
+    volumes:
+      # Docker socket for controlling nginx container
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      # Access to user configuration files
+      - ./modsecurity-crs-nginx/nginx/users:/app/nginx-configs:rw
+      - ./modsecurity-crs-nginx/modsecurity-crs/users:/app/modsecurity-rules:rw
     depends_on:
       - postgres
 

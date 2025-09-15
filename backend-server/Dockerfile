@@ -1,6 +1,11 @@
 # Use the official Node.js image as the base image
 FROM node:20
 
+# Install Docker CLI for container management
+RUN apt-get update && apt-get install -y \
+    docker.io \
+    && rm -rf /var/lib/apt/lists/*
+
 # Set the working directory inside the container
 WORKDIR /usr/src/app
 

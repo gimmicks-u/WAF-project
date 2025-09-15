@@ -1,0 +1,2 @@
+# This directory stores user-specific ModSecurity custom rules
+# Format: customer-{userId}-rules.conf

@@ -1,0 +1,5 @@
+# Include all user-specific domain configurations
+# These files are automatically generated when users add domains through the dashboard
+# Format: waf.{userId}.conf
+
+include /etc/nginx/users/*.conf;
