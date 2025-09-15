@@ -4,6 +4,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { Log } from '../logs/entities/log.entity';
 import { User } from '../users/entities/user.entity';
 import { Domain } from '../domains/entities/domain.entity';
+import { Rule } from '../rules/entities/rule.entity';
 
 @Global()
 @Module({
@@ -13,7 +14,7 @@ import { Domain } from '../domains/entities/domain.entity';
       useFactory: (configService: ConfigService) => ({
         type: 'postgres',
         url: configService.get('DATABASE_URL'),
-        entities: [Log, User, Domain],
+        entities: [Log, User, Domain, Rule],
         synchronize: true, // Set to false in production, use migrations instead
         logging: configService.get('NODE_ENV') === 'development',
         extra: {

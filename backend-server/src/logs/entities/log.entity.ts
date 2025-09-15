@@ -1,4 +1,5 @@
-import { Entity, PrimaryGeneratedColumn, Column, Index } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, Index, ManyToOne, JoinColumn } from 'typeorm';
+import { User } from '../../users/entities/user.entity';
 
 export enum LogSource {
   ACCESS = 'access',
@@ -16,12 +17,21 @@ export enum LogAction {
 @Index('idx_logs_ts', ['ts'])
 @Index('idx_logs_source_ts', ['source', 'ts'])
 @Index('idx_logs_ip_ts', ['ip', 'ts'])
+@Index('idx_logs_user_ts', ['user_id', 'ts'])
 export class Log {
   @PrimaryGeneratedColumn('increment', { type: 'bigint' })
   id: string;
 
   @Column({ type: 'timestamptz' })
   ts: Date;
+
+  // Tenant owner (nullable if not resolved)
+  @Column({ name: 'user_id', type: 'bigint', nullable: true })
+  user_id: string | null;
+
+  @ManyToOne(() => User, { onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'user_id' })
+  user?: User | null;
 
   @Column({ type: 'text' })
   source: string | null;

@@ -90,6 +90,7 @@ interface NormalizedRecord {
   request_body: string | null;
   response_body: string | null;
   raw: unknown;
+  user_id: string | null;
 }
 
 @Injectable()
@@ -104,6 +105,14 @@ export class LogsService {
     
     const logsToSave = records.map(record => {
       const normalized = this.normalizeRecord(record);
+      // Try to infer user_id from host header or request URI (if multi-tenant routing is used)
+      try {
+        const host = (normalized.request_headers?.['Host'] || normalized.request_headers?.['host']) as string | undefined;
+        if (host) {
+          // If you maintain a mapping from domain to user in DB, resolve it here
+          // For now, leave user_id as null; wiring requires Domain repository
+        }
+      } catch {}
       return this.logRepository.create(normalized);
     });
 
@@ -193,6 +202,7 @@ export class LogsService {
       response_headers: null,
       request_body: null,
       response_body: null,
+      user_id: null,
     };
 
     if (source === LogSource.ACCESS) {
