@@ -4,8 +4,8 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { mockRules } from '@/lib/mock-data';
 import { fetchRecentLogs, fetchDashboardStats } from '@/lib/api/logs';
+import { rulesService, RuleDTO } from '@/services/rules';
 import { MappedSecurityLog } from '@/lib/api/types';
 import { Shield, Activity, AlertTriangle, CheckCircle, Plus, Eye, Loader2, RefreshCw } from 'lucide-react';
 import Link from 'next/link';
@@ -13,6 +13,7 @@ import { format } from 'date-fns';
 
 export default function Dashboard() {
   const [recentLogs, setRecentLogs] = useState<MappedSecurityLog[]>([]);
+  const [recentRules, setRecentRules] = useState<RuleDTO[]>([]);
   const [dashboardStats, setDashboardStats] = useState({
     totalRequests: 0,
     blockedRequests: 0,
@@ -21,7 +22,9 @@ export default function Dashboard() {
   });
   const [isLoadingLogs, setIsLoadingLogs] = useState(true);
   const [isLoadingStats, setIsLoadingStats] = useState(true);
+  const [isLoadingRules, setIsLoadingRules] = useState(true);
   const [logsError, setLogsError] = useState<string | null>(null);
+  const [rulesError, setRulesError] = useState<string | null>(null);
 
   // Load recent logs
   const loadRecentLogs = async () => {
@@ -51,10 +54,30 @@ export default function Dashboard() {
     }
   };
 
+  // Load recent rules
+  const loadRecentRules = async () => {
+    setIsLoadingRules(true);
+    setRulesError(null);
+    try {
+      const rules = await rulesService.list();
+      // Sort by updatedAt and take the first 4
+      const sortedRules = rules.sort((a, b) => 
+        new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+      );
+      setRecentRules(sortedRules.slice(0, 4));
+    } catch (error) {
+      setRulesError('Failed to load recent rules');
+      console.error('Error loading recent rules:', error);
+    } finally {
+      setIsLoadingRules(false);
+    }
+  };
+
   // Load data on component mount
   useEffect(() => {
     loadRecentLogs();
     loadDashboardStats();
+    loadRecentRules();
   }, []);
 
   const stats = [
@@ -96,7 +119,7 @@ export default function Dashboard() {
     },
     {
       title: 'Active Rules',
-      value: mockRules.filter(r => r.isActive).length.toString(),
+      value: isLoadingRules ? '...' : recentRules.filter(r => r.isActive).length.toString(),
       description: 'Currently enabled',
       icon: CheckCircle,
       trend: null,
@@ -104,8 +127,6 @@ export default function Dashboard() {
       bgColor: 'bg-purple-50',
     },
   ];
-
-  const recentRules = mockRules.slice(0, 4);
 
   return (
     <div className="space-y-8">
@@ -162,28 +183,47 @@ export default function Dashboard() {
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
-            {recentRules.map((rule) => (
-              <div
-                key={rule.id}
-                className="flex items-center justify-between p-3 rounded-lg bg-slate-50"
-              >
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-1">
-                    <h4 className="font-medium text-slate-900">{rule.name}</h4>
-                    <Badge
-                      variant={rule.isActive ? 'default' : 'secondary'}
-                      className={rule.isActive ? 'bg-green-100 text-green-800' : ''}
-                    >
-                      {rule.isActive ? 'Active' : 'Inactive'}
-                    </Badge>
-                  </div>
-                  <p className="text-sm text-slate-600">{rule.description}</p>
-                  <p className="text-xs text-slate-500 mt-1">
-                    Updated {format(rule.updatedAt, 'MMM d, yyyy')}
-                  </p>
-                </div>
+            {isLoadingRules ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="w-6 h-6 animate-spin text-slate-400" />
+                <span className="ml-2 text-sm text-slate-500">Loading recent rules...</span>
               </div>
-            ))}
+            ) : rulesError ? (
+              <div className="text-center py-8">
+                <p className="text-sm text-red-600 mb-2">{rulesError}</p>
+                <Button onClick={loadRecentRules} variant="outline" size="sm">
+                  <RefreshCw className="w-3 h-3 mr-1" />
+                  Retry
+                </Button>
+              </div>
+            ) : recentRules.length === 0 ? (
+              <div className="text-center py-8 text-sm text-slate-500">
+                No rules created yet
+              </div>
+            ) : (
+              recentRules.map((rule) => (
+                <div
+                  key={rule.id}
+                  className="flex items-center justify-between p-3 rounded-lg bg-slate-50"
+                >
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-1">
+                      <h4 className="font-medium text-slate-900">{rule.name}</h4>
+                      <Badge
+                        variant={rule.isActive ? 'default' : 'secondary'}
+                        className={rule.isActive ? 'bg-green-100 text-green-800' : ''}
+                      >
+                        {rule.isActive ? 'Active' : 'Inactive'}
+                      </Badge>
+                    </div>
+                    <p className="text-sm text-slate-600">{rule.description || 'No description'}</p>
+                    <p className="text-xs text-slate-500 mt-1">
+                      Updated {format(new Date(rule.updatedAt), 'MMM d, yyyy')}
+                    </p>
+                  </div>
+                </div>
+              ))
+            )}
           </CardContent>
         </Card>
 

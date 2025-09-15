@@ -36,8 +36,8 @@ server {
     # Set per-server tenant id for logging and upstream propagation
     set $tenant_id "${domain.user_id}";
 
-    # Access log in JSON (requires waf_json log_format defined in http context)
-    access_log /var/log/nginx/access.log waf_json;
+    # Access log with default format (waf_json format should be defined in main nginx.conf)
+    access_log /var/log/nginx/access.log combined;
     
     # SSL Configuration (placeholder - configure certificates as needed)
     # ssl_certificate /etc/nginx/ssl/${domain.domain}/cert.pem;
@@ -143,15 +143,8 @@ SecAction "id:${phase1RuleId},phase:1,pass,nolog,setvar:tx.user_id=${userId}"
 # Emit tenant id at transaction end into the audit log (phase 5)
 SecAction "id:${phase5RuleId},phase:5,pass,log,auditlog,msg:'tenant=%{tx.user_id}'"
 
-# Place your custom rules below. Examples:
-#
-# Block specific IP
-# SecRule REMOTE_ADDR "@ipMatch 123.123.123.123" \
-#   "id:900${userId.substring(0, 3)}01,phase:1,deny,status:403,msg:'Blocked specific IP address'"
-#
-# Block a User-Agent
-# SecRule REQUEST_HEADERS:User-Agent "@contains badbot" \
-#   "id:900${userId.substring(0, 3)}02,phase:1,deny,status:403,msg:'Blocked bad bot'"
+# BEGIN CUSTOM RULES - DO NOT EDIT BELOW
+# END CUSTOM RULES - DO NOT EDIT ABOVE
 `;
 
     try {
@@ -160,6 +153,73 @@ SecAction "id:${phase5RuleId},phase:5,pass,log,auditlog,msg:'tenant=%{tx.user_id
     } catch (error) {
       this.logger.error(`Failed to write ModSecurity rules: ${error.message}`);
       throw error;
+    }
+  }
+
+  /**
+   * Update only the custom rules section for a user's ModSecurity rules file.
+   * Preserve the header above the BEGIN marker.
+   * Uses backup and atomic replace to avoid partial writes.
+   */
+  async updateUserCustomRules(userId: string, rulesText: string): Promise<void> {
+    const rulesFileName = `customer-${userId}-rules.conf`;
+    const rulesPath = path.join(this.modSecurityRulesPath, rulesFileName);
+    const backupPath = rulesPath + '.bak';
+    const tmpPath = rulesPath + '.tmp';
+
+    let existing = '';
+    try {
+      existing = await fs.readFile(rulesPath, 'utf8');
+    } catch (e) {
+      // If not exists, create the base file first
+      await this.createUserModSecurityRules(userId);
+      existing = await fs.readFile(rulesPath, 'utf8');
+    }
+
+    const beginMarker = '# BEGIN CUSTOM RULES - DO NOT EDIT BELOW';
+    const endMarker = '# END CUSTOM RULES - DO NOT EDIT ABOVE';
+
+    let header = existing;
+    let hasMarkers = false;
+    const beginIdx = existing.indexOf(beginMarker);
+    const endIdx = existing.indexOf(endMarker);
+    if (beginIdx !== -1 && endIdx !== -1 && endIdx > beginIdx) {
+      header = existing.substring(0, beginIdx).trimEnd() + '\n';
+      hasMarkers = true;
+    } else {
+      // append markers if missing
+      header = existing.trimEnd() + '\n';
+    }
+
+    const newBody = `${beginMarker}\n${rulesText}\n${endMarker}\n`;
+    const nextContent = `${header}${newBody}`;
+
+    // Backup current
+    try {
+      await fs.copyFile(rulesPath, backupPath);
+    } catch (e) {
+      // ignore if cannot backup, but log
+      this.logger.warn(`Could not backup user rules file: ${e.message}`);
+    }
+
+    // Atomic write: write tmp then rename
+    await fs.writeFile(tmpPath, nextContent, 'utf8');
+    await fs.rename(tmpPath, rulesPath);
+  }
+
+  /**
+   * Restore the user's rules file from backup, if exists
+   */
+  async restoreUserRulesBackup(userId: string): Promise<void> {
+    const rulesFileName = `customer-${userId}-rules.conf`;
+    const rulesPath = path.join(this.modSecurityRulesPath, rulesFileName);
+    const backupPath = rulesPath + '.bak';
+    try {
+      await fs.copyFile(backupPath, rulesPath);
+      this.logger.log(`Restored rules file from backup for user ${userId}`);
+    } catch (e) {
+      // best effort
+      this.logger.warn(`No backup to restore for user ${userId}: ${e.message}`);
     }
   }
 

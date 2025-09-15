@@ -7,6 +7,7 @@ import { DatabaseModule } from './database/database.module';
 import { LogsModule } from './logs/logs.module';
 import { AuthModule } from './auth/auth.module';
 import { DomainsModule } from './domains/domains.module';
+import { RulesModule } from './rules/rules.module';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { DomainsModule } from './domains/domains.module';
     LogsModule,
     AuthModule,
     DomainsModule,
+    RulesModule,
   ],
   controllers: [AppController],
   providers: [AppService],

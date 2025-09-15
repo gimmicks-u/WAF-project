@@ -1,20 +1,38 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
-import RuleDialog from '@/components/dashboard/rule-dialog';
-import { mockRules } from '@/lib/mock-data';
+import RuleDialog from '@/components/dashboard/rule-dialog-new';
 import { WAFRule } from '@/lib/types';
 import { Plus, Search, Edit, Trash2, AlertCircle } from 'lucide-react';
 import { format } from 'date-fns';
+import { rulesService, RuleDTO } from '@/services/rules';
+import { useToast } from '@/hooks/use-toast';
 
 export default function RulesPage() {
-  const [rules, setRules] = useState<WAFRule[]>(mockRules);
-  const [filteredRules, setFilteredRules] = useState<WAFRule[]>(mockRules);
+  const [rules, setRules] = useState<WAFRule[]>([]);
+  const [filteredRules, setFilteredRules] = useState<WAFRule[]>([]);
+  const { toast } = useToast();
+
+  async function fetchRules() {
+    try {
+      const data = await rulesService.list();
+      const mapped: WAFRule[] = data.map(mapRuleDtoToUi);
+      setRules(mapped);
+      setFilteredRules(applyFilter(mapped, ''));
+    } catch (e: any) {
+      toast({ title: '규칙 목록을 불러오지 못했습니다', description: e?.message ?? '알 수 없는 오류', variant: 'destructive' });
+    }
+  }
+
+  useEffect(() => {
+    fetchRules();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedRules, setSelectedRules] = useState<string[]>([]);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -23,13 +41,17 @@ export default function RulesPage() {
 
   const handleSearch = (term: string) => {
     setSearchTerm(term);
-    const filtered = rules.filter(
-      (rule) =>
-        rule.name.toLowerCase().includes(term.toLowerCase()) ||
-        rule.description.toLowerCase().includes(term.toLowerCase())
-    );
-    setFilteredRules(filtered);
+    setFilteredRules(applyFilter(rules, term));
   };
+
+  function applyFilter(list: WAFRule[], term: string) {
+    const t = term.toLowerCase();
+    return list.filter(
+      (rule) =>
+        rule.name.toLowerCase().includes(t) ||
+        (rule.description || '').toLowerCase().includes(t)
+    );
+  }
 
   const handleCreateRule = () => {
     setEditingRule(null);
@@ -43,57 +65,52 @@ export default function RulesPage() {
     setDialogOpen(true);
   };
 
-  const handleSaveRule = (ruleData: Partial<WAFRule>) => {
-    if (dialogMode === 'create') {
-      const newRule: WAFRule = {
-        id: `rule-${Date.now()}`,
-        name: ruleData.name || '',
-        description: ruleData.description || '',
-        content: ruleData.content || '',
-        isActive: ruleData.isActive ?? true,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        ruleType: 'custom',
-      };
-      const updatedRules = [...rules, newRule];
-      setRules(updatedRules);
-      setFilteredRules(updatedRules.filter(rule => 
-        rule.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        rule.description.toLowerCase().includes(searchTerm.toLowerCase())
-      ));
-    } else if (editingRule) {
-      const updatedRules = rules.map((rule) =>
-        rule.id === editingRule.id
-          ? { ...rule, ...ruleData, updatedAt: new Date() }
-          : rule
-      );
-      setRules(updatedRules);
-      setFilteredRules(updatedRules.filter(rule => 
-        rule.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        rule.description.toLowerCase().includes(searchTerm.toLowerCase())
-      ));
+  const handleSaveRule = async (ruleData: Partial<WAFRule>) => {
+    try {
+      if (dialogMode === 'create') {
+        await rulesService.create({
+          name: ruleData.name,
+          description: ruleData.description,
+          content: ruleData.content,
+          isActive: ruleData.isActive,
+        } as any);
+        toast({ title: '규칙이 생성되었습니다' });
+      } else if (editingRule) {
+        await rulesService.update(String(editingRule.id), {
+          name: ruleData.name,
+          description: ruleData.description,
+          content: ruleData.content,
+          isActive: ruleData.isActive,
+        } as any);
+        toast({ title: '규칙이 수정되었습니다' });
+      }
+      await fetchRules();
+    } catch (e: any) {
+      toast({ title: '작업 실패', description: e?.response?.data?.message ?? e?.message ?? '알 수 없는 오류', variant: 'destructive' });
     }
   };
 
-  const handleDeleteRule = (ruleId: string) => {
-    const updatedRules = rules.filter((rule) => rule.id !== ruleId);
-    setRules(updatedRules);
-    setFilteredRules(updatedRules.filter(rule => 
-      rule.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      rule.description.toLowerCase().includes(searchTerm.toLowerCase())
-    ));
-    setSelectedRules(selectedRules.filter((id) => id !== ruleId));
+  const handleDeleteRule = async (ruleId: string) => {
+    try {
+      await rulesService.delete(String(ruleId));
+      setSelectedRules(selectedRules.filter((id) => id !== ruleId));
+      toast({ title: '규칙이 삭제되었습니다' });
+      await fetchRules();
+    } catch (e: any) {
+      toast({ title: '삭제 실패', description: e?.response?.data?.message ?? e?.message ?? '알 수 없는 오류', variant: 'destructive' });
+    }
   };
 
-  const handleToggleRuleStatus = (ruleId: string) => {
-    const updatedRules = rules.map((rule) =>
-      rule.id === ruleId ? { ...rule, isActive: !rule.isActive, updatedAt: new Date() } : rule
-    );
-    setRules(updatedRules);
-    setFilteredRules(updatedRules.filter(rule => 
-      rule.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      rule.description.toLowerCase().includes(searchTerm.toLowerCase())
-    ));
+  const handleToggleRuleStatus = async (ruleId: string) => {
+    try {
+      const current = rules.find(r => String(r.id) === String(ruleId));
+      if (!current) return;
+      await rulesService.update(String(ruleId), { isActive: !current.isActive } as any);
+      toast({ title: '상태가 변경되었습니다' });
+      await fetchRules();
+    } catch (e: any) {
+      toast({ title: '상태 변경 실패', description: e?.response?.data?.message ?? e?.message ?? '알 수 없는 오류', variant: 'destructive' });
+    }
   };
 
   const handleSelectRule = (ruleId: string, checked: boolean) => {
@@ -111,6 +128,19 @@ export default function RulesPage() {
       setSelectedRules([]);
     }
   };
+
+  function mapRuleDtoToUi(r: RuleDTO): WAFRule {
+    return {
+      id: r.id,
+      name: r.name,
+      description: r.description ?? '',
+      content: r.content,
+      isActive: r.isActive,
+      createdAt: new Date(r.createdAt),
+      updatedAt: new Date(r.updatedAt),
+      ruleType: (r.ruleType as any) === 'custom' ? 'custom' : 'owasp',
+    };
+  }
 
   return (
     <div className="space-y-6">
