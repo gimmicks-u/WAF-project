@@ -34,10 +34,22 @@ export class WafLogStats {
   errorRequests: number;
 
   // Response time statistics
-  @Column({ name: 'avg_response_time', type: 'decimal', precision: 10, scale: 3, nullable: true })
+  @Column({
+    name: 'avg_response_time',
+    type: 'decimal',
+    precision: 10,
+    scale: 3,
+    nullable: true,
+  })
   avgResponseTime?: number;
 
-  @Column({ name: 'max_response_time', type: 'decimal', precision: 10, scale: 3, nullable: true })
+  @Column({
+    name: 'max_response_time',
+    type: 'decimal',
+    precision: 10,
+    scale: 3,
+    nullable: true,
+  })
   maxResponseTime?: number;
 
   // Top threat types (JSONB for flexibility)

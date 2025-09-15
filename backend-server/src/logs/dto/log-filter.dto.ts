@@ -1,4 +1,13 @@
-import { IsOptional, IsString, IsInt, IsBoolean, IsEnum, IsDateString, Min, Max } from 'class-validator';
+import {
+  IsOptional,
+  IsString,
+  IsInt,
+  IsBoolean,
+  IsEnum,
+  IsDateString,
+  Min,
+  Max,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 import { LogAction, RequestMethod } from '../entities/waf-log.entity';
 

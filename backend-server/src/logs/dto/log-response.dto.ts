@@ -32,7 +32,9 @@ export class LogResponseDto {
     this.ruleId = wafLog.ruleId;
     this.ruleMessage = wafLog.ruleMessage;
     this.threatType = wafLog.threatType;
-    this.requestTime = wafLog.requestTime ? Number(wafLog.requestTime) : undefined;
+    this.requestTime = wafLog.requestTime
+      ? Number(wafLog.requestTime)
+      : undefined;
     this.userAgent = wafLog.userAgent;
     this.responseSize = Number(wafLog.responseSize);
     this.requestSize = Number(wafLog.requestSize);
@@ -46,12 +48,16 @@ export class LogResponseDto {
     return uri;
   }
 
-  private calculateRiskLevel(log: WafLog): 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL' {
+  private calculateRiskLevel(
+    log: WafLog,
+  ): 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL' {
     if (log.blocked) {
       // Critical threats based on rule ID or threat type
-      if (log.threatType?.includes('SQL_INJECTION') || 
-          log.threatType?.includes('XSS') ||
-          log.threatType?.includes('RCE')) {
+      if (
+        log.threatType?.includes('SQL_INJECTION') ||
+        log.threatType?.includes('XSS') ||
+        log.threatType?.includes('RCE')
+      ) {
         return 'CRITICAL';
       }
       return 'HIGH';
@@ -96,12 +102,12 @@ export class PaginatedLogsResponseDto {
       allowedCount: number;
       errorCount: number;
       avgResponseTime?: number;
-    }
+    },
   ) {
-    this.data = logs.map(log => new LogResponseDto(log));
-    
+    this.data = logs.map((log) => new LogResponseDto(log));
+
     const totalPages = Math.ceil(total / limit);
-    
+
     this.meta = {
       total,
       page,
@@ -110,7 +116,7 @@ export class PaginatedLogsResponseDto {
       hasNext: page < totalPages,
       hasPrevious: page > 1,
     };
-    
+
     this.stats = stats;
   }
 }
@@ -131,12 +137,14 @@ export class LogDetailResponseDto extends LogResponseDto {
 
   constructor(wafLog: WafLog) {
     super(wafLog);
-    
+
     this.requestUrl = wafLog.requestUrl;
     this.referer = wafLog.referer;
     this.upstreamAddr = wafLog.upstreamAddr;
     this.upstreamStatus = wafLog.upstreamStatus;
-    this.upstreamResponseTime = wafLog.upstreamResponseTime ? Number(wafLog.upstreamResponseTime) : undefined;
+    this.upstreamResponseTime = wafLog.upstreamResponseTime
+      ? Number(wafLog.upstreamResponseTime)
+      : undefined;
     this.modsecTransactionId = wafLog.modsecTransactionId;
     this.modsecAuditLogParts = wafLog.modsecAuditLogParts;
     this.rawLog = wafLog.rawLog;

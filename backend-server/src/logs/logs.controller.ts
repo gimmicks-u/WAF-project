@@ -15,5 +15,4 @@ export class LogsController {
   async getLogs(@Query() query: LogsQueryDto) {
     return this.logsService.getLogs(query);
   }
-
 }

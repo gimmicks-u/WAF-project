@@ -1,4 +1,9 @@
-import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ConflictException,
+  BadRequestException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Domain, DomainStatus } from './entities/domain.entity';
@@ -14,9 +19,14 @@ export class DomainsService {
     private readonly nginxService: NginxService,
   ) {}
 
-  async create(userId: string, createDomainDto: CreateDomainDto): Promise<Domain> {
+  async create(
+    userId: string,
+    createDomainDto: CreateDomainDto,
+  ): Promise<Domain> {
     // Enforce single domain per user
-    const userDomainCount = await this.domainRepository.count({ where: { user_id: userId } });
+    const userDomainCount = await this.domainRepository.count({
+      where: { user_id: userId },
+    });
     if (userDomainCount >= 1) {
       throw new BadRequestException('Each user can register only one domain');
     }
@@ -60,11 +70,13 @@ export class DomainsService {
     } catch (error) {
       // If configuration fails, remove the domain
       await this.domainRepository.remove(savedDomain);
-      
+
       // Clean up configuration files
       await this.nginxService.removeNginxConfig(userId);
-      
-      throw new BadRequestException(`Failed to configure domain: ${error.message}`);
+
+      throw new BadRequestException(
+        `Failed to configure domain: ${error.message}`,
+      );
     }
 
     return savedDomain;
@@ -89,7 +101,11 @@ export class DomainsService {
     return domain;
   }
 
-  async update(id: string, userId: string, updateDomainDto: UpdateDomainDto): Promise<Domain> {
+  async update(
+    id: string,
+    userId: string,
+    updateDomainDto: UpdateDomainDto,
+  ): Promise<Domain> {
     const domain = await this.findOne(id, userId);
 
     // Store old origin_ip in case we need to rollback
@@ -99,7 +115,10 @@ export class DomainsService {
     Object.assign(domain, updateDomainDto);
 
     // If origin_ip changed, regenerate configuration
-    if (updateDomainDto.origin_ip && updateDomainDto.origin_ip !== oldOriginIp) {
+    if (
+      updateDomainDto.origin_ip &&
+      updateDomainDto.origin_ip !== oldOriginIp
+    ) {
       try {
         // Generate new configuration
         await this.nginxService.generateNginxConfig(domain);
@@ -112,13 +131,17 @@ export class DomainsService {
           domain.origin_ip = oldOriginIp;
           await this.nginxService.generateNginxConfig(domain);
           await this.nginxService.validateAndReloadNginx();
-          
-          throw new BadRequestException('Failed to update domain configuration');
+
+          throw new BadRequestException(
+            'Failed to update domain configuration',
+          );
         }
 
         domain.status = DomainStatus.ENABLED;
       } catch (error) {
-        throw new BadRequestException(`Failed to update domain: ${error.message}`);
+        throw new BadRequestException(
+          `Failed to update domain: ${error.message}`,
+        );
       }
     }
 
@@ -148,7 +171,10 @@ export class DomainsService {
     await this.domainRepository.remove(domain);
   }
 
-  async getStatus(id: string, userId: string): Promise<{ status: DomainStatus; message: string }> {
+  async getStatus(
+    id: string,
+    userId: string,
+  ): Promise<{ status: DomainStatus; message: string }> {
     const domain = await this.findOne(id, userId);
 
     let message = '';

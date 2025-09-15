@@ -1,5 +1,13 @@
 import { Transform } from 'class-transformer';
-import { IsEnum, IsInt, IsIP, IsISO8601, IsOptional, Max, Min } from 'class-validator';
+import {
+  IsEnum,
+  IsInt,
+  IsIP,
+  IsISO8601,
+  IsOptional,
+  Max,
+  Min,
+} from 'class-validator';
 
 export class LogsQueryDto {
   @IsOptional()

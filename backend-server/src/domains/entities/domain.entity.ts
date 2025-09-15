@@ -1,19 +1,19 @@
-import { 
-  Entity, 
-  PrimaryGeneratedColumn, 
-  Column, 
-  Index, 
-  CreateDateColumn, 
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  Index,
+  CreateDateColumn,
   UpdateDateColumn,
   ManyToOne,
-  JoinColumn
+  JoinColumn,
 } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
 
 export enum DomainStatus {
   PENDING = 'pending',
   ENABLED = 'enabled',
-  DISABLED = 'disabled'
+  DISABLED = 'disabled',
 }
 
 @Entity('domains')
@@ -40,7 +40,7 @@ export class Domain {
   @Column({
     type: 'enum',
     enum: DomainStatus,
-    default: DomainStatus.PENDING
+    default: DomainStatus.PENDING,
   })
   status: DomainStatus;
 
