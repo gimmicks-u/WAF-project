@@ -32,6 +32,12 @@ server {
 
     # Server name
     server_name ${domain.domain};
+
+    # Set per-server tenant id for logging and upstream propagation
+    set $tenant_id "${domain.user_id}";
+
+    # Access log in JSON (requires waf_json log_format defined in http context)
+    access_log /var/log/nginx/access.log waf_json;
     
     # SSL Configuration (placeholder - configure certificates as needed)
     # ssl_certificate /etc/nginx/ssl/${domain.domain}/cert.pem;
@@ -53,6 +59,9 @@ server {
     location / {
         # Proxy to origin server
         proxy_pass http://${domain.origin_ip};
+        
+        # Propagate tenant id to upstream and ModSecurity
+        proxy_set_header X-Tenant-Id $tenant_id;
         
         # Proxy headers
         proxy_set_header Host $host;
@@ -110,11 +119,29 @@ server {
     const rulesPath = path.join(this.modSecurityRulesPath, rulesFileName);
 
     // Always (re)write a sane default to avoid invalid includes
+    // Derive deterministic rule IDs for this user
+    let phase1RuleId = 1200000;
+    let phase5RuleId = 1200001;
+    try {
+      const baseRuleId = 1200000; // within recommended custom range
+      const offset = Number(BigInt(userId) % 10000n);
+      phase1RuleId = baseRuleId + offset * 2;
+      phase5RuleId = baseRuleId + offset * 2 + 1;
+    } catch (e) {
+      // fallback to defaults if userId is not a valid BigInt
+    }
+
     const modSecurityRules = `# ModSecurity Custom Rules for User ${userId}
 # Generated: ${new Date().toISOString()}
 
 # Keep engine ON (the base CRS is loaded by the image's default config)
 SecRuleEngine On
+
+# Inject tenant id into TX collection for audit/logging
+SecAction "id:${phase1RuleId},phase:1,pass,nolog,setvar:tx.user_id=${userId}"
+
+# Emit tenant id at transaction end into the audit log (phase 5)
+SecAction "id:${phase5RuleId},phase:5,pass,log,auditlog,msg:'tenant=%{tx.user_id}'"
 
 # Place your custom rules below. Examples:
 #

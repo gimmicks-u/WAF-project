@@ -96,7 +96,10 @@ interface NormalizedRecord {
 
 @Injectable()
 export class LogsService {
-  private readonly domainCache = new Map<string, { userId: string | null; expiresAt: number }>();
+  private readonly domainCache = new Map<
+    string,
+    { userId: string | null; expiresAt: number }
+  >();
   private readonly DOMAIN_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
   constructor(
@@ -114,19 +117,15 @@ export class LogsService {
     const logsToSave = await Promise.all(
       records.map(async (record) => {
         const normalized = this.normalizeRecord(record);
-        // Resolve tenant by Host header if present
-        const rawHost = (normalized.request_headers?.['Host'] || normalized.request_headers?.['host']) as string | undefined;
-        if (rawHost) {
-          const host = this.normalizeHost(rawHost);
-          const userId = await this.resolveUserIdForHost(host);
-          if (userId) {
-            normalized.user_id = userId;
-          }
+        // Prefer tenant/user id provided by the log itself (from Nginx/ModSecurity)
+        const userIdFromLog = this.extractUserIdFromLogRecord(record);
+        if (userIdFromLog) {
+          normalized.user_id = userIdFromLog;
         }
+
         return this.logRepository.create(normalized);
       }),
     );
-
     await this.logRepository.save(logsToSave);
     return { success: true };
   }
@@ -282,16 +281,64 @@ export class LogsService {
     return idx > -1 ? trimmed.slice(0, idx) : trimmed;
   }
 
-  private async resolveUserIdForHost(host: string): Promise<string | null> {
-    const now = Date.now();
-    const cached = this.domainCache.get(host);
-    if (cached && cached.expiresAt > now) {
-      return cached.userId;
+  // Extract user/tenant id from log content based on our Nginx/ModSecurity setup
+  private extractUserIdFromLogRecord(record: IngestLog): string | null {
+    const source = (record as any).source;
+
+    // 1) Access logs: Nginx JSON access log includes user_id directly
+    if (source === 'access') {
+      const r = record as AccessIngestLog as any;
+      const candidates = [
+        r.user_id,
+        r.tenant,
+        r.tenant_id,
+        r['X-Tenant-Id'],
+        r['x-tenant-id'],
+      ];
+      for (const c of candidates) {
+        if (c !== undefined && c !== null) {
+          return String(c);
+        }
+      }
+      // In some pipelines, headers may appear under r.headers or r.request_headers
+      const headers: Record<string, string> | undefined =
+        r.headers || r.request_headers;
+      const h = this.getHeaderCaseInsensitive(headers, 'x-tenant-id');
+      if (h) return h;
+      return null;
     }
 
-    const domain = await this.domainRepository.findOne({ where: { domain: host, status: DomainStatus.ENABLED } });
-    const userId = domain ? domain.user_id : null;
-    this.domainCache.set(host, { userId, expiresAt: now + this.DOMAIN_CACHE_TTL_MS });
-    return userId;
+    // 2) WAF logs: prefer request header X-Tenant-Id, fallback to messages with "tenant=<id>"
+    if (source === 'waf') {
+      const r = record as WafIngestLog;
+      const headers = r.transaction?.request?.headers || undefined;
+      const headerVal = this.getHeaderCaseInsensitive(headers, 'x-tenant-id');
+      if (headerVal) return headerVal;
+
+      // Parse messages emitted by phase:5 SecAction: msg:'tenant=%{tx.user_id}'
+      const msgs = r.transaction?.messages || [];
+      for (const m of msgs) {
+        const text = m?.message || '';
+        const match = text.match(/tenant=([A-Za-z0-9_\-:\.]+)/);
+        if (match && match[1]) {
+          return match[1];
+        }
+      }
+      return null;
+    }
+
+    return null;
+  }
+
+  private getHeaderCaseInsensitive(
+    headers: Record<string, string> | undefined,
+    name: string,
+  ): string | null {
+    if (!headers) return null;
+    const target = name.toLowerCase();
+    for (const [k, v] of Object.entries(headers)) {
+      if (k.toLowerCase() === target) return String(v);
+    }
+    return null;
   }
 }
