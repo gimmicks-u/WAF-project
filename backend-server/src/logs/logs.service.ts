@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Log, LogAction, LogSource } from './entities/log.entity';
 import { LogsQueryDto } from './dto/logs-query.dto';
+import { Domain, DomainStatus } from '../domains/entities/domain.entity';
 
 // Type definitions for WAF log processing
 interface WafMessageDetails {
@@ -95,26 +96,36 @@ interface NormalizedRecord {
 
 @Injectable()
 export class LogsService {
+  private readonly domainCache = new Map<string, { userId: string | null; expiresAt: number }>();
+  private readonly DOMAIN_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
   constructor(
     @InjectRepository(Log)
     private logRepository: Repository<Log>,
+    @InjectRepository(Domain)
+    private domainRepository: Repository<Domain>,
   ) {}
 
-  async ingestLogs(body: IngestLog | IngestLog[]): Promise<{ success: boolean }> {
+  async ingestLogs(
+    body: IngestLog | IngestLog[],
+  ): Promise<{ success: boolean }> {
     const records: IngestLog[] = Array.isArray(body) ? body : [body];
-    
-    const logsToSave = records.map(record => {
-      const normalized = this.normalizeRecord(record);
-      // Try to infer user_id from host header or request URI (if multi-tenant routing is used)
-      try {
-        const host = (normalized.request_headers?.['Host'] || normalized.request_headers?.['host']) as string | undefined;
-        if (host) {
-          // If you maintain a mapping from domain to user in DB, resolve it here
-          // For now, leave user_id as null; wiring requires Domain repository
+
+    const logsToSave = await Promise.all(
+      records.map(async (record) => {
+        const normalized = this.normalizeRecord(record);
+        // Resolve tenant by Host header if present
+        const rawHost = (normalized.request_headers?.['Host'] || normalized.request_headers?.['host']) as string | undefined;
+        if (rawHost) {
+          const host = this.normalizeHost(rawHost);
+          const userId = await this.resolveUserIdForHost(host);
+          if (userId) {
+            normalized.user_id = userId;
+          }
         }
-      } catch {}
-      return this.logRepository.create(normalized);
-    });
+        return this.logRepository.create(normalized);
+      }),
+    );
 
     await this.logRepository.save(logsToSave);
     return { success: true };
@@ -141,7 +152,9 @@ export class LogsService {
       queryBuilder.andWhere('log.uri ILIKE :uri', { uri: `%${query.uri}%` });
     }
     if (query.method) {
-      queryBuilder.andWhere('log.method = :method', { method: query.method.toUpperCase() });
+      queryBuilder.andWhere('log.method = :method', {
+        method: query.method.toUpperCase(),
+      });
     }
     if (query.status !== undefined) {
       queryBuilder.andWhere('log.status = :status', { status: query.status });
@@ -153,17 +166,16 @@ export class LogsService {
       queryBuilder.andWhere('log.source = :source', { source: query.source });
     }
     if (query.rule_id !== undefined) {
-      queryBuilder.andWhere(':rule_id = ANY(log.rule_ids)', { rule_id: query.rule_id });
+      queryBuilder.andWhere(':rule_id = ANY(log.rule_ids)', {
+        rule_id: query.rule_id,
+      });
     }
 
     // Get total count
     const total = await queryBuilder.getCount();
 
     // Apply pagination and ordering
-    queryBuilder
-      .orderBy('log.ts', 'DESC')
-      .skip(offset)
-      .take(limit);
+    queryBuilder.orderBy('log.ts', 'DESC').skip(offset).take(limit);
 
     const items = await queryBuilder.getMany();
 
@@ -212,7 +224,7 @@ export class LogsService {
         ? (statusVal as number)
         : null;
       normalized.action =
-        normalized.status != null && (normalized.status as number) >= 400
+        normalized.status != null && normalized.status >= 400
           ? LogAction.BLOCKED
           : LogAction.ALLOWED;
       normalized.ip = r.remote_addr ?? null;
@@ -223,8 +235,7 @@ export class LogsService {
       const req = tx.request || {};
       const res = tx.response || {};
 
-      const status =
-        (res.http_code as number | undefined) ?? (res.status as number | undefined) ?? null;
+      const status = res.http_code ?? res.status ?? null;
       normalized.status = status ?? null;
 
       if (status != null && status >= 400) {
@@ -236,7 +247,8 @@ export class LogsService {
       }
 
       normalized.ip = tx.client_ip ?? null;
-      normalized.method = (req.method || '') ? (req.method as string).toUpperCase() : null;
+      normalized.method =
+        req.method || '' ? (req.method as string).toUpperCase() : null;
       normalized.uri = req.uri ?? null;
 
       // Collect rule IDs as numbers
@@ -253,12 +265,33 @@ export class LogsService {
       }
 
       // Headers & bodies
-      normalized.request_headers = (req.headers as Record<string, string>) || null;
-      normalized.response_headers = (res.headers as Record<string, string>) || null;
+      normalized.request_headers =
+        (req.headers as Record<string, string>) || null;
+      normalized.response_headers =
+        (res.headers as Record<string, string>) || null;
       normalized.request_body = (req.body as string | null) || null;
       normalized.response_body = (res.body as string | null) || null;
     }
 
     return normalized;
+  }
+
+  private normalizeHost(input: string): string {
+    const trimmed = input.trim().toLowerCase();
+    const idx = trimmed.indexOf(':');
+    return idx > -1 ? trimmed.slice(0, idx) : trimmed;
+  }
+
+  private async resolveUserIdForHost(host: string): Promise<string | null> {
+    const now = Date.now();
+    const cached = this.domainCache.get(host);
+    if (cached && cached.expiresAt > now) {
+      return cached.userId;
+    }
+
+    const domain = await this.domainRepository.findOne({ where: { domain: host, status: DomainStatus.ENABLED } });
+    const userId = domain ? domain.user_id : null;
+    this.domainCache.set(host, { userId, expiresAt: now + this.DOMAIN_CACHE_TTL_MS });
+    return userId;
   }
 }
