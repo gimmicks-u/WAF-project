@@ -130,12 +130,15 @@ export class LogsService {
     return { success: true };
   }
 
-  async getLogs(query: LogsQueryDto) {
+  async getLogs(query: LogsQueryDto, userId: string) {
     const page = query.page ?? 1;
     const limit = query.limit ?? 50;
     const offset = (page - 1) * limit;
 
     const queryBuilder = this.logRepository.createQueryBuilder('log');
+
+    // Filter by user_id - REQUIRED
+    queryBuilder.where('log.user_id = :userId', { userId });
 
     // Apply filters
     if (query.from) {
