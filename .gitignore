@@ -33,3 +33,7 @@ modsecurity-crs-nginx/modsecurity-crs/logs/modsec_audit.json
 *.tmp
 *.pid
 *.pid.lock
+
+
+modsecurity-crs-nginx/nginx/users/*
+modsecurity-crs-nginx/modsecurity-crs/users/*
