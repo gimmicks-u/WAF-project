@@ -9,7 +9,7 @@ services:
     networks:
       - waf_network
     environment:
-      - BACKEND=http://tenant-example:3000
+      - BACKEND=http://tenant-example:4000
     depends_on:
       - backend-server
       - tenant-example
@@ -34,12 +34,12 @@ services:
     container_name: backend-server
     restart: always
     ports:
-      - 3001:3001
+      - 4001:4001
     networks:
       - waf_network
     environment:
       - NODE_ENV=production
-      - PORT=3001
+      - PORT=4001
       - DATABASE_URL=postgres://waf:change_me@postgres:5432/waf_logs
       - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
       - APP_JWT_SECRET=${APP_JWT_SECRET}
@@ -57,7 +57,7 @@ services:
     container_name: frontend
     restart: always
     ports:
-      - 3002:3000
+      - 4002:3000
     networks:
       - waf_network
     environment:
@@ -71,7 +71,7 @@ services:
     container_name: tenant-example
     restart: always
     ports:
-      - 3000:3000
+      - 4000:4000
     networks:
       - waf_network
 

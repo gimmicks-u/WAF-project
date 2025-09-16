@@ -58,13 +58,13 @@ docker compose down
 ### 접속 정보
 
 - **WAF(Proxy)**: http://localhost:8080
-- **백엔드(직접 접근)**: http://localhost:3000
+- **백엔드(직접 접근)**: http://localhost:4001
 
 헬스체크 예시
 
 ```bash
 curl -i http://localhost:8080/health
-curl -i http://localhost:3000/health
+curl -i http://localhost:4001/health
 ```
 
 CRS 차단 테스트(예시 — 실제 차단 여부/응답 코드는 룰셋/모드에 따라 달라질 수 있음)
@@ -79,16 +79,16 @@ curl -i "http://localhost:8080/?id=1 OR 1=1"
 
 - `docker-compose.yml`
 
-  - `waf-nginx`: `owasp/modsecurity-crs:nginx` 이미지를 사용하며, `BACKEND` 환경변수로 백엔드 업스트림을 지정합니다. 현재 값은 `http://backend-server:3000` 입니다.
+  - `waf-nginx`: `owasp/modsecurity-crs:nginx` 이미지를 사용하며, `BACKEND` 환경변수로 백엔드 업스트림을 지정합니다. 현재 값은 `http://backend-server:4000` 입니다.
   - `backend-server`: Node 20 Alpine 기반의 간단한 Express 서버(프로덕션 빌드 후 `dist/main.js` 실행).
-  - 포트: `8080:8080`(HTTP), `8443:8443`(HTTPS), `3000:3000`(백엔드 직접 접근)
+  - 포트: `8080:8080`(HTTP), `8443:8443`(HTTPS), `4001:4001`(백엔드 직접 접근), `4002:3000`(프론트엔드), `4000:4000`(테넌트 예제)
   - 볼륨: 아래 두 파일이 컨테이너에 마운트됩니다.
     - `modsecurity-crs-nginx/nginx/rules/custom_rules.conf` → `/etc/nginx/conf.d/custom_rules.conf`
     - `modsecurity-crs-nginx/modsecurity-crs/rules/custom_rules.conf` → `/etc/modsecurity.d/owasp-crs/rules/custom_rules.conf`
 
 - `backend-server/src/main.ts`
   - 라우트: `/` → "Hello world!", `/health` → "OK"
-  - 환경변수: `PORT`(기본 3000)
+  - 환경변수: `PORT`(기본 4001)
 
 ---
 

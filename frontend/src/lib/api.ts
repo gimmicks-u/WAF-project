@@ -3,7 +3,7 @@ import type { AxiosRequestHeaders, InternalAxiosRequestConfig } from 'axios';
 
 // Axios instance with base URL and token injection
 const api = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3001',
+  baseURL: process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:4001',
   withCredentials: false,
 });
 
