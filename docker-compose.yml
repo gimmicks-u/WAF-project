@@ -8,8 +8,6 @@ services:
       - 8443:8443
     networks:
       - waf_network
-    environment:
-      - BACKEND=http://tenant-example:4000
     depends_on:
       - backend-server
       - tenant-example
