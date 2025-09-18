@@ -1,37 +1,23 @@
-# WAF (Web Application Firewall)
+# WAF (Web Application Firewall) SaaS
 
-OWASP ModSecurity CRS와 Nginx를 기반으로 한 리버스 프록시형 WAF 서버입니다.
+OWASP ModSecurity CRS와 Nginx를 기반으로 한 리버스 프록시형 WAF를 멀티 테넌트 SaaS 형태로 관리·운영하기 위한 프로젝트입니다. 프론트엔드 대시보드에서 테넌트/도메인별 WAF 설정과 커스텀 룰을 손쉽게 관리하고, 실시간 로그를 통해 트래픽과 차단 이벤트를 모니터링할 수 있습니다.
 
-- ModSecurity v3
-- OWASP Core Rule Set(CRS)
-- Nginx
-- Docker Compose 기반 로컬 실행
+## Flow
 
----
+![WAF 시스템 플로우](waf-diagram.png)
 
-### 아키텍처
+- 클라이언트 요청은 `Nginx + ModSecurity (OWASP CRS)`를 통해 검사되며 허용/차단 여부가 결정됩니다.
+- 접근 로그/감사 로그는 파일로 기록되고 수집 파이프라인(Fluent Bit)을 통해 DB에 저장되며, API를 통해 대시보드로 전달됩니다.
+- 운영자는 대시보드에서 테넌트/도메인, 커스텀 룰을 관리합니다. 룰 변경 시 테넌트 전용 설정 파일이 갱신되고 Nginx가 Reload되도록 설계되어 있습니다.
 
-```
-Client → Nginx (ModSecurity + OWASP CRS) → backend-server (Express)
-```
+## MVP
 
-### 폴더 구조
+- **Google 로그인**: Google OAuth 기반 로그인으로 간편한 인증 제공.
+- **멀티 테넌트**: 테넌트별로 도메인, 규칙, 로그를 논리적으로 분리 관리.
+- **커스텀 룰 설정**: ModSecurity/CRS 룰을 템플릿 기반으로 테넌트 단위 커스터마이징 및 적용.
+- **실시간 로그 확인**: Nginx/ModSecurity 로그를 실시간으로 스트리밍해 대시보드에서 조회 및 필터링.
 
-```
-WAF/
-  ├─ docker-compose.yml
-  ├─ backend-server/
-  │  ├─ Dockerfile
-  │  ├─ package.json
-  │  └─ src/main.ts           # 간단한 Express 서버 (/ , /health)
-  └─ modsecurity-crs-nginx/
-     ├─ nginx/rules/custom_rules.conf          # Nginx 보안 헤더 등 커스텀
-     └─ modsecurity-crs/rules/custom_rules.conf # ModSecurity/CRS 커스텀 룰
-```
-
----
-
-### 빠른 시작
+## 빠른 시작
 
 사전 요구사항: Docker, Docker Compose
 
@@ -39,15 +25,16 @@ WAF/
 docker compose up -d
 ```
 
-컨테이너 상태 확인 및 로그
+컨테이너 상태 및 로그 확인:
 
 ```bash
 docker compose ps
 docker compose logs -f waf-nginx
 docker compose logs -f backend-server
+docker compose logs -f frontend
 ```
 
-중지/정리
+중지/정리:
 
 ```bash
 docker compose down
@@ -55,55 +42,51 @@ docker compose down
 
 ---
 
-### 접속 정보
+## 폴더 구조 (요약)
 
-- **WAF(Proxy)**: http://localhost:8080
-- **백엔드(직접 접근)**: http://localhost:4001
-
-헬스체크 예시
-
-```bash
-curl -i http://localhost:8080/health
-curl -i http://localhost:4001/health
+```text
+WAF/
+  ├─ docker-compose.yml
+  ├─ waf-diagram.png
+  ├─ backend-server/                 # NestJS 백엔드(API, 인증, 규칙/도메인/로그 관리)
+  │  ├─ src/
+  │  │  ├─ app.module.ts
+  │  │  ├─ auth/                     # Google 로그인 등 인증 모듈
+  │  │  ├─ database/                 # DB 모듈
+  │  │  ├─ domains/                  # 도메인 관리, Nginx 연동 서비스
+  │  │  ├─ logs/                     # 로그 엔드포인트/서비스
+  │  │  ├─ rules/                    # 룰 관리, 템플릿/유틸
+  │  │  └─ users/
+  │  ├─ Dockerfile
+  │  └─ package.json
+  ├─ frontend/                       # Next.js 대시보드(로그/룰/도메인/테넌트 UI)
+  │  ├─ src/
+  │  │  ├─ app/
+  │  │  │  └─ dashboard/             # 도메인/룰/로그 페이지
+  │  │  ├─ components/
+  │  │  ├─ services/                 # API 호출 래퍼
+  │  │  └─ lib/                      # 타입/유틸/템플릿
+  │  ├─ Dockerfile
+  │  └─ package.json
+  ├─ modsecurity-crs-nginx/          # WAF 런타임 자원(Nginx, ModSecurity, CRS, 템플릿/로그)
+  │  ├─ modsecurity-crs/
+  │  │  ├─ rules/custom_rules.conf
+  │  │  ├─ logs/
+  │  │  └─ templates/modsecurity-override.conf.template
+  │  └─ nginx/
+  │     ├─ rules/custom_rules.conf
+  │     ├─ logs/
+  │     └─ templates/
+  │        ├─ users.conf.template
+  │        └─ logging.conf.template
+  ├─ observability/
+  │  └─ fluent-bit/                  # 로그 수집(옵션)
+  │     ├─ fluent-bit.conf
+  │     └─ parsers_multiline.conf
+  └─ tenant-example/                 # 테넌트 예제 서비스(로컬 테스트용)
 ```
 
-CRS 차단 테스트(예시 — 실제 차단 여부/응답 코드는 룰셋/모드에 따라 달라질 수 있음)
-
-```bash
-curl -i "http://localhost:8080/?id=1 OR 1=1"
-```
-
----
-
-### 구성 개요
-
-- `docker-compose.yml`
-
-  - `waf-nginx`: `owasp/modsecurity-crs:nginx` 이미지를 사용하며, `BACKEND` 환경변수로 백엔드 업스트림을 지정합니다. 현재 값은 `http://backend-server:4000` 입니다.
-  - `backend-server`: Node 20 Alpine 기반의 간단한 Express 서버(프로덕션 빌드 후 `dist/main.js` 실행).
-  - 포트: `8080:8080`(HTTP), `8443:8443`(HTTPS), `4001:4001`(백엔드 직접 접근), `4002:3000`(프론트엔드), `4000:4000`(테넌트 예제)
-  - 볼륨: 아래 두 파일이 컨테이너에 마운트됩니다.
-    - `modsecurity-crs-nginx/nginx/rules/custom_rules.conf` → `/etc/nginx/conf.d/custom_rules.conf`
-    - `modsecurity-crs-nginx/modsecurity-crs/rules/custom_rules.conf` → `/etc/modsecurity.d/owasp-crs/rules/custom_rules.conf`
-
-- `backend-server/src/main.ts`
-  - 라우트: `/` → "Hello world!", `/health` → "OK"
-  - 환경변수: `PORT`(기본 4001)
-
----
-
-### 트러블슈팅
-
-- 403(차단) 발생: 요청이 CRS/ModSecurity 룰에 의해 차단되었을 수 있습니다. `waf-nginx` 로그를 확인하세요.
-  ```bash
-  docker compose logs -f waf-nginx
-  ```
-- 502/504: 백엔드 연결 문제일 수 있습니다. `backend-server` 컨테이너 상태와 `BACKEND` 환경변수를 확인하세요.
-- HTTPS 경고: 데모/기본 인증서일 수 있으므로 로컬 테스트 시 `curl -k`를 사용하거나, 실환경에서는 정식 인증서를 적용하세요.
-
----
-
-### 참고
+## 참고
 
 - OWASP CRS: `https://coreruleset.org/`
 - ModSecurity: `https://github.com/SpiderLabs/ModSecurity`
