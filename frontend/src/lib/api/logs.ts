@@ -1,10 +1,10 @@
 import api from '../api';
-import { 
-  BackendLog, 
-  PaginatedLogsResponse, 
+import {
+  BackendLog,
+  PaginatedLogsResponse,
   LogsQueryParams,
   MappedSecurityLog,
-  LogAction
+  LogAction,
 } from './types';
 
 /**
@@ -17,22 +17,6 @@ export function mapBackendLogToSecurityLog(log: BackendLog): MappedSecurityLog {
     // Map common ModSecurity rule ID ranges to threat types
     const ruleId = log.rule_ids[0];
     if (ruleId >= 900000 && ruleId < 910000) {
-      threatType = 'Method Enforcement';
-    } else if (ruleId >= 910000 && ruleId < 920000) {
-      threatType = 'Protocol Enforcement';
-    } else if (ruleId >= 920000 && ruleId < 930000) {
-      threatType = 'Protocol Attack';
-    } else if (ruleId >= 930000 && ruleId < 940000) {
-      threatType = 'Application Attack LFI/RFI';
-    } else if (ruleId >= 940000 && ruleId < 950000) {
-      threatType = 'Application Attack XSS/SQLi';
-    } else if (ruleId >= 950000 && ruleId < 960000) {
-      threatType = 'Application Attack Session';
-    } else if (ruleId >= 960000 && ruleId < 970000) {
-      threatType = 'Application Attack PHP';
-    } else if (ruleId >= 970000 && ruleId < 980000) {
-      threatType = 'Application Attack NodeJS';
-    } else {
       threatType = `Rule ${ruleId}`;
     }
   } else if (log.source === 'waf') {
@@ -52,12 +36,16 @@ export function mapBackendLogToSecurityLog(log: BackendLog): MappedSecurityLog {
   }
 
   // Extract user agent from request headers if available
-  const userAgent = log.request_headers?.['User-Agent'] || 
-                    log.request_headers?.['user-agent'] || 
-                    undefined;
+  const userAgent =
+    log.request_headers?.['User-Agent'] ||
+    log.request_headers?.['user-agent'] ||
+    undefined;
 
   // Map action to frontend format (exclude 'unknown')
-  const mappedAction = log.action === 'unknown' ? 'detected' : log.action as ('detected' | 'blocked' | 'allowed');
+  const mappedAction =
+    log.action === 'unknown'
+      ? 'detected'
+      : (log.action as 'detected' | 'blocked' | 'allowed');
 
   return {
     id: log.id,
@@ -92,21 +80,27 @@ export async function fetchLogs(params: LogsQueryParams = {}): Promise<{
   try {
     // Build query parameters, filtering out undefined values
     const queryParams = new URLSearchParams();
-    
-    if (params.page !== undefined) queryParams.append('page', params.page.toString());
-    if (params.limit !== undefined) queryParams.append('limit', params.limit.toString());
+
+    if (params.page !== undefined)
+      queryParams.append('page', params.page.toString());
+    if (params.limit !== undefined)
+      queryParams.append('limit', params.limit.toString());
     if (params.from) queryParams.append('from', params.from);
     if (params.to) queryParams.append('to', params.to);
     if (params.ip) queryParams.append('ip', params.ip);
     if (params.uri) queryParams.append('uri', params.uri);
     if (params.method) queryParams.append('method', params.method);
-    if (params.status !== undefined) queryParams.append('status', params.status.toString());
+    if (params.status !== undefined)
+      queryParams.append('status', params.status.toString());
     if (params.action) queryParams.append('action', params.action);
     if (params.source) queryParams.append('source', params.source);
-    if (params.rule_id !== undefined) queryParams.append('rule_id', params.rule_id.toString());
+    if (params.rule_id !== undefined)
+      queryParams.append('rule_id', params.rule_id.toString());
 
-    const response = await api.get<PaginatedLogsResponse>(`/logs?${queryParams.toString()}`);
-    
+    const response = await api.get<PaginatedLogsResponse>(
+      `/logs?${queryParams.toString()}`
+    );
+
     // Map backend logs to frontend format
     const mappedLogs = response.data.items.map(mapBackendLogToSecurityLog);
 
@@ -178,9 +172,13 @@ export function buildLogsQueryParams(
 /**
  * Fetches recent logs for the dashboard
  */
-export async function fetchRecentLogs(limit: number = 5): Promise<MappedSecurityLog[]> {
+export async function fetchRecentLogs(
+  limit: number = 5
+): Promise<MappedSecurityLog[]> {
   try {
-    const response = await api.get<PaginatedLogsResponse>(`/logs?limit=${limit}&page=1`);
+    const response = await api.get<PaginatedLogsResponse>(
+      `/logs?limit=${limit}&page=1`
+    );
     return response.data.items.map(mapBackendLogToSecurityLog);
   } catch (error) {
     console.error('Error fetching recent logs:', error);
@@ -200,12 +198,14 @@ export async function fetchDashboardStats(): Promise<{
   try {
     // Fetch different types of logs to get statistics
     // In a production environment, you might want to create a dedicated stats endpoint
-    const [allLogs, blockedLogs, detectedLogs, allowedLogs] = await Promise.all([
-      api.get<PaginatedLogsResponse>('/logs?limit=1'), // Just to get total count
-      api.get<PaginatedLogsResponse>('/logs?action=blocked&limit=1'),
-      api.get<PaginatedLogsResponse>('/logs?action=detected&limit=1'),
-      api.get<PaginatedLogsResponse>('/logs?action=allowed&limit=1'),
-    ]);
+    const [allLogs, blockedLogs, detectedLogs, allowedLogs] = await Promise.all(
+      [
+        api.get<PaginatedLogsResponse>('/logs?limit=1'), // Just to get total count
+        api.get<PaginatedLogsResponse>('/logs?action=blocked&limit=1'),
+        api.get<PaginatedLogsResponse>('/logs?action=detected&limit=1'),
+        api.get<PaginatedLogsResponse>('/logs?action=allowed&limit=1'),
+      ]
+    );
 
     return {
       totalRequests: allLogs.data.total,
