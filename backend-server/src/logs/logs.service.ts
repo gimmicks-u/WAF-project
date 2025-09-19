@@ -242,7 +242,7 @@ export class LogsService {
 
       if (status != null && status >= 400) {
         normalized.action = LogAction.BLOCKED;
-      } else if (Array.isArray(tx.messages) && tx.messages.length > 0) {
+      } else if (Array.isArray(tx.messages) && tx.messages.length > 1) {
         normalized.action = LogAction.DETECTED;
       } else {
         normalized.action = LogAction.ALLOWED;
