@@ -16,9 +16,10 @@ export function mapBackendLogToSecurityLog(log: BackendLog): MappedSecurityLog {
   if (log.rule_ids && log.rule_ids.length > 0) {
     // Map common ModSecurity rule ID ranges to threat types
     const ruleId = log.rule_ids[0];
-    if (ruleId >= 900000 && ruleId < 910000) {
-      threatType = `Rule ${ruleId}`;
-    }
+    threatType =
+      log.action === 'allowed'
+        ? `Rule ${ruleId}`
+        : log.raw.transaction?.messages[0]?.message ?? `Rule ${ruleId}`;
   } else if (log.source === 'waf') {
     threatType = 'WAF Detection';
   } else if (log.source === 'access') {
