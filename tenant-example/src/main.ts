@@ -156,7 +156,7 @@ app.get('/', (req, res) => {
     </style>
 </head>
 <body>
-    <h1>WAF 보안 테스트</h1>
+    <h1>Tenant Example: WAF 보안 테스트</h1>
     
     <div class="test-section">
         <h2>1. SQL Injection 테스트</h2>
