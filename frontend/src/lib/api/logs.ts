@@ -20,6 +20,10 @@ export function mapBackendLogToSecurityLog(log: BackendLog): MappedSecurityLog {
       log.action === 'allowed'
         ? `Rule ${ruleId}`
         : log.raw.transaction?.messages[0]?.message ?? `Rule ${ruleId}`;
+
+    if (threatType.includes('tenant')) {
+      threatType = `Rule ${ruleId}`;
+    }
   } else if (log.source === 'waf') {
     threatType = 'WAF Detection';
   } else if (log.source === 'access') {
